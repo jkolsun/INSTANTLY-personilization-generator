@@ -1365,15 +1365,59 @@ def render_instantly_page():
                             if len(results_log) > 50:
                                 st.caption("Showing first 50 results. See 'Previous Results' section below for full list with search/filter.")
 
-                        # Download button
-                        csv = results_df.to_csv(index=False)
-                        st.download_button(
-                            "Download All Results CSV",
-                            data=csv,
-                            file_name="instantly_sync_results.csv",
-                            mime="text/csv",
-                            use_container_width=True,
-                        )
+                        # Action buttons row
+                        st.markdown("---")
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            csv = results_df.to_csv(index=False)
+                            st.download_button(
+                                "Download All Results CSV",
+                                data=csv,
+                                file_name="instantly_sync_results.csv",
+                                mime="text/csv",
+                                use_container_width=True,
+                            )
+
+                        with col2:
+                            # Check for unsynced results (preview mode or failures)
+                            unsynced_count = sum(1 for r in results_log if r.get("synced") in ["Preview", "FAILED"])
+                            if unsynced_count > 0:
+                                if st.button(f"🚀 Push {unsynced_count} to Instantly", type="primary", use_container_width=True, key="push_after_process"):
+                                    with st.spinner(f"Pushing {unsynced_count} leads to Instantly..."):
+                                        push_success = 0
+                                        push_fail = 0
+                                        for result in results_log:
+                                            if result.get("synced") in ["Preview", "FAILED"]:
+                                                variables = {
+                                                    "personalization_line": result.get("line", ""),
+                                                    "artifact_type": result.get("type", ""),
+                                                    "artifact_text": result.get("artifact", ""),
+                                                    "confidence_tier": result.get("tier", ""),
+                                                }
+                                                success, _ = instantly_client.update_lead_variables(
+                                                    lead_id=None,
+                                                    variables=variables,
+                                                    email=result.get("email"),
+                                                    campaign_id=selected_campaign_id,
+                                                )
+                                                if success:
+                                                    result["synced"] = "Yes"
+                                                    push_success += 1
+                                                else:
+                                                    push_fail += 1
+
+                                        # Update saved results
+                                        st.session_state.instantly_results_log = results_log
+                                        save_results(results_log, stats, selected_campaign_name)
+
+                                        if push_fail == 0:
+                                            st.success(f"✅ Successfully pushed {push_success} leads to Instantly!")
+                                        else:
+                                            st.warning(f"Pushed {push_success}, {push_fail} failed")
+                                        st.rerun()
+                            else:
+                                st.success("✅ All synced to Instantly!")
 
                     st.balloons()
 
