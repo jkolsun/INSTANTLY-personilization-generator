@@ -874,16 +874,30 @@ def render_instantly_page():
             if st.session_state.instantly_leads:
                 leads = st.session_state.instantly_leads
 
+                # Count leads with existing personalization
+                leads_with_personalization = sum(
+                    1 for lead in leads
+                    if lead.custom_variables.get("personalization_line")
+                    and str(lead.custom_variables.get("personalization_line")).strip()
+                )
+
                 st.markdown(f"### Leads Preview ({len(leads)} total)")
+
+                # Show warning if many leads have personalization
+                if leads_with_personalization > 0:
+                    st.warning(f"**{leads_with_personalization} of {len(leads)} leads already have personalization.** "
+                              f"{'These will be skipped.' if skip_existing else 'These will be overwritten.'}")
 
                 # Create preview dataframe
                 preview_data = []
                 for lead in leads[:20]:  # Show first 20
-                    has_personalization = bool(lead.custom_variables.get("personalization_line"))
+                    personalization_value = lead.custom_variables.get("personalization_line", "")
+                    has_personalization = bool(personalization_value and str(personalization_value).strip())
                     preview_data.append({
                         "Email": lead.email,
                         "Company": lead.company_name or "-",
                         "Has Personalization": "Yes" if has_personalization else "No",
+                        "Existing Line": str(personalization_value)[:50] + "..." if personalization_value and len(str(personalization_value)) > 50 else (personalization_value or "-"),
                     })
 
                 st.dataframe(pd.DataFrame(preview_data), width="stretch", hide_index=True)
@@ -922,8 +936,24 @@ def render_instantly_page():
                     for idx, lead in enumerate(leads):
                         try:
                             # Skip if already has personalization and skip_existing is True
-                            if skip_existing and lead.custom_variables.get("personalization_line"):
+                            existing_line = lead.custom_variables.get("personalization_line", "")
+                            has_existing = bool(existing_line and str(existing_line).strip())
+
+                            if skip_existing and has_existing:
                                 stats["skipped"] += 1
+                                results_log.append({
+                                    "email": lead.email,
+                                    "company": lead.company_name,
+                                    "line": f"[SKIPPED] {str(existing_line)[:50]}...",
+                                    "tier": "SKIPPED",
+                                    "artifact": "",
+                                    "synced": "Skipped",
+                                    "error": "",
+                                })
+                                # Update progress even for skipped leads
+                                progress = (idx + 1) / len(leads)
+                                progress_bar.progress(progress)
+                                status_text.markdown(f"**Skipping:** {lead.company_name or lead.email} (already has personalization)")
                                 continue
 
                             company_name = lead.company_name or "Unknown"

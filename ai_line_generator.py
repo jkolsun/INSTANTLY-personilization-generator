@@ -78,8 +78,8 @@ class AILineGenerator:
 
         context = "\n\n".join(context_parts)
 
-        # If no context available, return a fallback
-        if not context.strip() or context.strip() == f"Company: {company_name}":
+        # If no context at all (not even company name), return a fallback
+        if not context.strip():
             return AIGeneratedLine(
                 line="Came across your company online.",
                 confidence_tier="B",
@@ -88,6 +88,8 @@ class AILineGenerator:
                 reasoning="No data available for personalization",
             )
 
+        # Always call Claude if we have at least a company name
+        # Claude can work with minimal data and still produce something useful
         prompt = self._build_prompt(company_name, context)
 
         try:
