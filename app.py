@@ -26,6 +26,8 @@ from config import ArtifactType, ConfidenceTier, ARTIFACT_CONFIDENCE
 from line_generator import LineGenerator
 from validator import Validator
 from website_scraper import WebsiteScraper
+from instantly_client import InstantlyClient
+from instantly_sync import InstantlyPersonalizer
 
 
 # Page configuration
@@ -71,6 +73,17 @@ def init_session_state():
         st.session_state.processing_stats = {}
     if "artifacts_log" not in st.session_state:
         st.session_state.artifacts_log = []
+    # Instantly integration
+    if "instantly_api_key" not in st.session_state:
+        st.session_state.instantly_api_key = ""
+    if "instantly_connected" not in st.session_state:
+        st.session_state.instantly_connected = False
+    if "instantly_campaigns" not in st.session_state:
+        st.session_state.instantly_campaigns = []
+    if "instantly_leads" not in st.session_state:
+        st.session_state.instantly_leads = []
+    if "instantly_sync_stats" not in st.session_state:
+        st.session_state.instantly_sync_stats = {}
 
 
 def process_single_row(
@@ -149,7 +162,7 @@ def render_sidebar():
 
         page = st.radio(
             "Navigation",
-            ["Upload & Preview", "Process Leads", "Results & Stats", "Artifact Inspector"],
+            ["Upload & Preview", "Process Leads", "Results & Stats", "Artifact Inspector", "Instantly Sync"],
             label_visibility="collapsed",
         )
 
@@ -635,6 +648,254 @@ def render_inspector_page():
                         st.markdown(f"**URL:** {a.evidence_url}")
 
 
+def render_instantly_page():
+    """Render the Instantly sync page."""
+    st.header("Instantly Sync")
+
+    st.markdown("""
+    Connect to your Instantly account to pull leads directly and push personalization lines back.
+
+    **How it works:**
+    1. Enter your Instantly API key
+    2. Select a campaign
+    3. Process leads (generates personalization lines)
+    4. Push results back to Instantly as custom variables
+    """)
+
+    st.markdown("---")
+
+    # API Key input
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        api_key = st.text_input(
+            "Instantly API Key",
+            value=st.session_state.instantly_api_key,
+            type="password",
+            help="Your Instantly API V2 key. Find it in Instantly Settings > Integrations > API",
+        )
+
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Connect", type="primary", use_container_width=True):
+            if api_key:
+                with st.spinner("Testing connection..."):
+                    try:
+                        client = InstantlyClient(api_key)
+                        if client.test_connection():
+                            st.session_state.instantly_api_key = api_key
+                            st.session_state.instantly_connected = True
+                            # Fetch campaigns
+                            campaigns = client.list_campaigns()
+                            st.session_state.instantly_campaigns = campaigns
+                            st.success(f"Connected! Found {len(campaigns)} campaigns.")
+                            st.rerun()
+                        else:
+                            st.error("Connection failed. Check your API key.")
+                    except Exception as e:
+                        st.error(f"Connection error: {e}")
+            else:
+                st.warning("Please enter your API key.")
+
+    # Show connection status
+    if st.session_state.instantly_connected:
+        st.success("Connected to Instantly")
+
+        st.markdown("---")
+        st.subheader("Select Campaign")
+
+        campaigns = st.session_state.instantly_campaigns
+        if campaigns:
+            campaign_options = {f"{c.name} ({c.status})": c.id for c in campaigns}
+            selected_campaign_name = st.selectbox(
+                "Campaign",
+                options=list(campaign_options.keys()),
+                help="Select a campaign to process",
+            )
+            selected_campaign_id = campaign_options[selected_campaign_name]
+
+            col1, col2 = st.columns(2)
+            with col1:
+                limit = st.number_input(
+                    "Limit leads (0 = all)",
+                    min_value=0,
+                    value=100,
+                    help="Maximum number of leads to process",
+                )
+            with col2:
+                dry_run = st.checkbox(
+                    "Dry run (preview only)",
+                    value=True,
+                    help="Preview what would be done without updating Instantly",
+                )
+
+            skip_existing = st.checkbox(
+                "Skip leads with existing personalization",
+                value=True,
+                help="Skip leads that already have a personalization_line set",
+            )
+
+            st.markdown("---")
+
+            # Fetch leads button
+            if st.button("Fetch Leads", use_container_width=True):
+                with st.spinner("Fetching leads from Instantly..."):
+                    try:
+                        client = InstantlyClient(st.session_state.instantly_api_key)
+                        leads = client.list_leads(
+                            campaign_id=selected_campaign_id,
+                            limit=limit if limit > 0 else 10000,
+                        )
+                        st.session_state.instantly_leads = leads
+                        st.success(f"Fetched {len(leads)} leads")
+                    except Exception as e:
+                        st.error(f"Error fetching leads: {e}")
+
+            # Show fetched leads
+            if st.session_state.instantly_leads:
+                leads = st.session_state.instantly_leads
+
+                st.markdown(f"### Leads Preview ({len(leads)} total)")
+
+                # Create preview dataframe
+                preview_data = []
+                for lead in leads[:20]:  # Show first 20
+                    has_personalization = bool(lead.custom_variables.get("personalization_line"))
+                    preview_data.append({
+                        "Email": lead.email,
+                        "Company": lead.company_name or "-",
+                        "Has Personalization": "Yes" if has_personalization else "No",
+                    })
+
+                st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
+
+                if len(leads) > 20:
+                    st.caption(f"Showing 20 of {len(leads)} leads")
+
+                st.markdown("---")
+
+                # Process button
+                if st.button("Process & Sync to Instantly", type="primary", use_container_width=True):
+                    personalizer = InstantlyPersonalizer(
+                        api_key=st.session_state.instantly_api_key,
+                        seed=42,
+                    )
+
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    stats_display = st.empty()
+                    results_container = st.container()
+
+                    stats = {"S": 0, "A": 0, "B": 0, "errors": 0, "skipped": 0}
+                    results_log = []
+
+                    for idx, lead in enumerate(leads):
+                        try:
+                            # Skip if already has personalization and skip_existing is True
+                            if skip_existing and lead.custom_variables.get("personalization_line"):
+                                stats["skipped"] += 1
+                                continue
+
+                            status_text.markdown(f"**Processing:** {lead.email} ({idx + 1}/{len(leads)})")
+
+                            # Generate personalization
+                            variables = personalizer.personalize_lead(lead)
+
+                            # Update stats
+                            tier = variables["confidence_tier"]
+                            stats[tier] = stats.get(tier, 0) + 1
+
+                            results_log.append({
+                                "email": lead.email,
+                                "company": lead.company_name,
+                                "line": variables["personalization_line"],
+                                "tier": tier,
+                                "artifact": variables["artifact_text"],
+                            })
+
+                            if not dry_run:
+                                # Update lead in Instantly
+                                client = InstantlyClient(st.session_state.instantly_api_key)
+                                client.update_lead_variables(lead.id, variables)
+
+                        except Exception as e:
+                            stats["errors"] += 1
+                            results_log.append({
+                                "email": lead.email,
+                                "company": lead.company_name,
+                                "line": f"Error: {e}",
+                                "tier": "ERROR",
+                                "artifact": "",
+                            })
+
+                        # Update progress
+                        progress = (idx + 1) / len(leads)
+                        progress_bar.progress(progress)
+
+                        # Update stats display
+                        total_processed = stats["S"] + stats["A"] + stats["B"]
+                        high_conf = stats["S"] + stats["A"]
+                        high_conf_pct = high_conf / total_processed * 100 if total_processed > 0 else 0
+
+                        stats_display.markdown(f"""
+                        | Metric | Value |
+                        |--------|-------|
+                        | Processed | {idx + 1}/{len(leads)} |
+                        | Tier S | {stats['S']} |
+                        | Tier A | {stats['A']} |
+                        | Tier B | {stats['B']} |
+                        | Skipped | {stats['skipped']} |
+                        | High Confidence | {high_conf_pct:.1f}% |
+                        | Errors | {stats['errors']} |
+                        """)
+
+                    st.session_state.instantly_sync_stats = stats
+
+                    status_text.markdown("**Processing complete!**")
+
+                    if dry_run:
+                        st.warning("This was a DRY RUN. No changes were made in Instantly.")
+                    else:
+                        st.success("Personalization synced to Instantly!")
+
+                    # Show results
+                    with results_container:
+                        st.markdown("### Results")
+                        results_df = pd.DataFrame(results_log)
+                        st.dataframe(results_df, use_container_width=True, hide_index=True)
+
+                        # Download results
+                        csv = results_df.to_csv(index=False)
+                        st.download_button(
+                            "Download Results CSV",
+                            data=csv,
+                            file_name="instantly_sync_results.csv",
+                            mime="text/csv",
+                        )
+
+                    st.balloons()
+        else:
+            st.warning("No campaigns found in your Instantly account.")
+
+    # Instructions
+    with st.expander("How to get your Instantly API Key"):
+        st.markdown("""
+        1. Log in to [Instantly.ai](https://instantly.ai)
+        2. Go to **Settings** (gear icon)
+        3. Click **Integrations**
+        4. Find **API** section
+        5. Copy your **API V2 Key**
+
+        **Note:** The personalization will be stored in these custom variables:
+        - `personalization_line` - The generated opening line
+        - `artifact_type` - Type of content used (EXACT_PHRASE, TOOL_PLATFORM, etc.)
+        - `artifact_text` - The actual text extracted
+        - `confidence_tier` - S, A, or B quality rating
+
+        Use `{{personalization_line}}` in your email templates to include the personalization.
+        """)
+
+
 def main():
     """Main application entry point."""
     init_session_state()
@@ -649,6 +910,8 @@ def main():
         render_results_page()
     elif page == "Artifact Inspector":
         render_inspector_page()
+    elif page == "Instantly Sync":
+        render_instantly_page()
 
 
 if __name__ == "__main__":
