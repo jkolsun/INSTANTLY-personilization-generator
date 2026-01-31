@@ -925,6 +925,13 @@ def render_instantly_page():
                     instantly_client = InstantlyClient(st.session_state.instantly_api_key)
                     use_ai = st.session_state.use_ai_generation and st.session_state.anthropic_connected
 
+                    # Show Serper status
+                    serper_key = st.session_state.serper_api_key
+                    if serper_key and len(serper_key) > 10:
+                        st.info(f"✓ Serper API: Ready for company research")
+                    else:
+                        st.warning(f"✗ Serper API key missing or invalid - company research will be limited")
+
                     # AI generator or template-based fallback
                     ai_generator = None
 
@@ -952,7 +959,7 @@ def render_instantly_page():
                     stats_display = st.empty()
                     results_container = st.container()
 
-                    stats = {"S": 0, "A": 0, "B": 0, "errors": 0, "skipped": 0}
+                    stats = {"S": 0, "A": 0, "B": 0, "errors": 0, "skipped": 0, "serper_success": 0, "serper_fail": 0}
                     results_log = []
 
                     for idx, lead in enumerate(leads):
@@ -987,8 +994,14 @@ def render_instantly_page():
                             try:
                                 company_info = serper.get_company_info(company_name, domain)
                                 serper_description = extract_artifacts_from_serper(company_info)
+                                if serper_description and len(serper_description) > 20:
+                                    stats["serper_success"] += 1
+                                    logging.info(f"Serper found data for {company_name}: {len(serper_description)} chars")
+                                else:
+                                    stats["serper_fail"] += 1
+                                    logging.warning(f"Serper returned no useful data for {company_name}")
                             except Exception as e:
-                                # Log but continue - AI can still work with lead data
+                                stats["serper_fail"] += 1
                                 logging.warning(f"Serper lookup failed for {company_name}: {e}")
 
                             # Build lead data dict for AI generator
@@ -999,6 +1012,9 @@ def render_instantly_page():
                                 "industry": lead.raw_data.get("industry", ""),
                                 "location": lead.raw_data.get("location", ""),
                             }
+
+                            # Track data source
+                            has_serper_data = bool(serper_description and len(serper_description) > 20)
 
                             if use_ai and ai_generator:
                                 # Use Claude AI to generate the line
@@ -1013,7 +1029,7 @@ def render_instantly_page():
                                     "artifact_type": ai_result.artifact_type,
                                     "artifact_text": ai_result.artifact_used,
                                     "confidence_tier": ai_result.confidence_tier,
-                                    "evidence_source": "claude_ai",
+                                    "evidence_source": "claude_ai" + ("+serper" if has_serper_data else ""),
                                 }
                             else:
                                 # Fallback to template-based generation
@@ -1105,6 +1121,7 @@ def render_instantly_page():
                                 "line": variables["personalization_line"],
                                 "tier": tier,
                                 "artifact": variables["artifact_text"],
+                                "source": "Serper" if has_serper_data else "Lead data",
                                 "synced": sync_status,
                                 "error": error_msg[:100] if error_msg else "",
                             })
@@ -1139,6 +1156,8 @@ def render_instantly_page():
                         | Tier B | {stats['B']} |
                         | Skipped | {stats['skipped']} |
                         | High Confidence | {high_conf_pct:.1f}% |
+                        | Serper Success | {stats['serper_success']} |
+                        | Serper No Data | {stats['serper_fail']} |
                         | Errors | {stats['errors']} |
                         """)
 
