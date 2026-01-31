@@ -135,14 +135,15 @@ def init_session_state():
         st.session_state.instantly_sync_complete = False
     if "saved_campaign_name" not in st.session_state:
         st.session_state.saved_campaign_name = ""
-    # Serper API key (hardcoded for now)
+    # Serper API key - from env var or hardcoded fallback
     if "serper_api_key" not in st.session_state:
-        st.session_state.serper_api_key = "2e396f4a9a63bd80b9c15e4857addd053b3747ec"
-    # Anthropic API for AI-generated lines
+        st.session_state.serper_api_key = os.environ.get("SERPER_API_KEY", "2e396f4a9a63bd80b9c15e4857addd053b3747ec")
+    # Anthropic API for AI-generated lines - from env var
     if "anthropic_api_key" not in st.session_state:
-        st.session_state.anthropic_api_key = ""
+        st.session_state.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if "anthropic_connected" not in st.session_state:
-        st.session_state.anthropic_connected = False
+        # Auto-connect if env var is set
+        st.session_state.anthropic_connected = bool(os.environ.get("ANTHROPIC_API_KEY"))
     if "use_ai_generation" not in st.session_state:
         st.session_state.use_ai_generation = True  # Default to AI generation
 
