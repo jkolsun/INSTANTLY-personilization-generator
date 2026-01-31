@@ -4,10 +4,15 @@ Instantly API V2 Client for personalization integration.
 API Documentation: https://developer.instantly.ai/api/v2
 """
 import time
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import requests
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -21,7 +26,6 @@ class Lead:
     company_domain: Optional[str]
     campaign_id: Optional[str]
     custom_variables: Dict[str, Any]
-    # Additional fields from the API
     raw_data: Dict[str, Any]
 
     @classmethod
@@ -33,8 +37,8 @@ class Lead:
             first_name=data.get("first_name"),
             last_name=data.get("last_name"),
             company_name=data.get("company_name"),
-            company_domain=data.get("company_domain"),
-            campaign_id=data.get("campaign"),
+            company_domain=data.get("website") or data.get("company_domain"),
+            campaign_id=data.get("campaign"),  # V2 uses "campaign" not "campaign_id"
             custom_variables=data.get("custom_variables", {}),
             raw_data=data,
         )
@@ -70,13 +74,7 @@ class InstantlyClient:
     BASE_URL = "https://api.instantly.ai/api/v2"
 
     def __init__(self, api_key: str, rate_limit_delay: float = 0.5):
-        """
-        Initialize the Instantly client.
-
-        Args:
-            api_key: Instantly API V2 key
-            rate_limit_delay: Seconds to wait between requests (default 0.5)
-        """
+        """Initialize the Instantly client."""
         self.api_key = api_key
         self.rate_limit_delay = rate_limit_delay
         self.session = requests.Session()
@@ -92,22 +90,12 @@ class InstantlyClient:
         params: Optional[Dict] = None,
         json_data: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-        """
-        Make an API request.
-
-        Args:
-            method: HTTP method (GET, POST, etc.)
-            endpoint: API endpoint (e.g., "/campaigns")
-            params: Query parameters
-            json_data: JSON body data
-
-        Returns:
-            API response as dict
-
-        Raises:
-            requests.HTTPError: If request fails
-        """
+        """Make an API request with logging."""
         url = f"{self.BASE_URL}{endpoint}"
+
+        logger.info(f"API Request: {method} {endpoint}")
+        if json_data:
+            logger.info(f"Request body: {json_data}")
 
         response = self.session.request(
             method=method,
@@ -119,19 +107,17 @@ class InstantlyClient:
         # Rate limiting
         time.sleep(self.rate_limit_delay)
 
+        # Log response
+        logger.info(f"Response status: {response.status_code}")
+
+        if not response.ok:
+            logger.error(f"Error response: {response.text[:500]}")
+
         response.raise_for_status()
         return response.json()
 
     def list_campaigns(self, limit: int = 100) -> List[Campaign]:
-        """
-        List all campaigns.
-
-        Args:
-            limit: Maximum number of campaigns to return
-
-        Returns:
-            List of Campaign objects
-        """
+        """List all campaigns."""
         campaigns = []
         starting_after = None
 
@@ -149,7 +135,6 @@ class InstantlyClient:
             for item in items:
                 campaigns.append(Campaign.from_api_response(item))
 
-            # Check if we have more pages
             next_starting_after = response.get("next_starting_after")
             if not next_starting_after or len(campaigns) >= limit:
                 break
@@ -161,18 +146,14 @@ class InstantlyClient:
     def list_leads(
         self,
         campaign_id: Optional[str] = None,
-        list_id: Optional[str] = None,
         limit: int = 1000,
-        email_filter: Optional[str] = None,
     ) -> List[Lead]:
         """
-        List leads from a campaign or list.
+        List leads from a campaign.
 
         Args:
             campaign_id: Filter by campaign ID
-            list_id: Filter by list ID
             limit: Maximum number of leads to return
-            email_filter: Filter by email address
 
         Returns:
             List of Lead objects
@@ -181,46 +162,50 @@ class InstantlyClient:
         starting_after = None
 
         while True:
-            # POST request for listing leads (per API docs)
+            # Build request body - try "campaign" parameter (V2 style)
             body = {"limit": min(limit - len(leads), 100)}
 
             if campaign_id:
-                body["campaign_id"] = campaign_id
-            if list_id:
-                body["list_id"] = list_id
-            if email_filter:
-                body["email"] = email_filter
+                body["campaign"] = campaign_id
+
             if starting_after:
                 body["starting_after"] = starting_after
 
-            response = self._request("POST", "/leads/list", json_data=body)
+            try:
+                response = self._request("POST", "/leads/list", json_data=body)
+            except requests.HTTPError as e:
+                logger.error(f"Failed to list leads: {e}")
+                # Try with campaign_id instead
+                if campaign_id and "campaign" in body:
+                    body["campaign_id"] = campaign_id
+                    del body["campaign"]
+                    try:
+                        response = self._request("POST", "/leads/list", json_data=body)
+                    except requests.HTTPError:
+                        break
+                else:
+                    break
 
             items = response.get("items", [])
+            logger.info(f"Got {len(items)} leads in this batch")
+
             if not items:
                 break
 
             for item in items:
                 leads.append(Lead.from_api_response(item))
 
-            # Check if we have more pages
             next_starting_after = response.get("next_starting_after")
             if not next_starting_after or len(leads) >= limit:
                 break
 
             starting_after = next_starting_after
 
+        logger.info(f"Total leads fetched: {len(leads)}")
         return leads[:limit]
 
     def get_lead(self, lead_id: str) -> Lead:
-        """
-        Get a single lead by ID.
-
-        Args:
-            lead_id: The lead ID
-
-        Returns:
-            Lead object
-        """
+        """Get a single lead by ID."""
         response = self._request("GET", f"/leads/{lead_id}")
         return Lead.from_api_response(response)
 
@@ -230,72 +215,18 @@ class InstantlyClient:
         custom_variables: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Lead:
-        """
-        Update a lead's data.
-
-        Args:
-            lead_id: The lead ID
-            custom_variables: Custom variables to set/update
-            **kwargs: Other fields to update (first_name, last_name, etc.)
-
-        Returns:
-            Updated Lead object
-        """
+        """Update a lead's data via PATCH."""
         body = {}
 
         if custom_variables:
             body["custom_variables"] = custom_variables
 
-        # Add any other fields
         for key, value in kwargs.items():
             if value is not None:
                 body[key] = value
 
         response = self._request("PATCH", f"/leads/{lead_id}", json_data=body)
         return Lead.from_api_response(response)
-
-    def update_lead_direct(
-        self,
-        email: str,
-        custom_variables: Dict[str, Any],
-        campaign_id: str,
-    ) -> tuple:
-        """
-        Update lead using the direct update endpoint.
-
-        Args:
-            email: Lead email
-            custom_variables: Variables to update
-            campaign_id: Campaign ID
-
-        Returns:
-            Tuple of (success, error_message)
-        """
-        try:
-            # Try direct PATCH with email lookup first
-            body = {
-                "email": email,
-                "campaign_id": campaign_id,
-                "custom_variables": custom_variables,
-            }
-            response = self._request("PATCH", "/leads", json_data=body)
-            return (True, None)
-        except requests.HTTPError as e:
-            error1 = f"PATCH /leads: {e.response.status_code}" if e.response else str(e)
-
-        # Try POST to update endpoint
-        try:
-            body = {
-                "email": email,
-                "campaign_id": campaign_id,
-                "custom_variables": custom_variables,
-            }
-            response = self._request("POST", "/leads/update", json_data=body)
-            return (True, None)
-        except requests.HTTPError as e:
-            error2 = f"POST /leads/update: {e.response.status_code}" if e.response else str(e)
-
-        return (False, f"{error1}; {error2}")
 
     def update_lead_variables(
         self,
@@ -307,154 +238,79 @@ class InstantlyClient:
         """
         Update custom variables on a lead.
 
-        In V2 API, the most reliable way to set custom variables is to use the
-        add leads endpoint with skip_if_in_campaign=False, which acts as an upsert.
-
-        Args:
-            lead_id: The lead ID
-            variables: Dictionary of variable name -> value
-            email: Lead email (required for upsert approach)
-            campaign_id: Campaign ID for the lead
+        Tries multiple approaches to ensure success.
 
         Returns:
             Tuple of (success: bool, error_message: str or None)
         """
-        last_error = None
+        errors = []
 
-        # Approach 1: PATCH on lead ID (if we have it)
+        # Approach 1: PATCH on lead ID
         if lead_id:
             try:
+                logger.info(f"Trying PATCH /leads/{lead_id}")
                 self.update_lead(lead_id, custom_variables=variables)
+                logger.info("PATCH succeeded!")
                 return (True, None)
             except requests.HTTPError as e:
-                last_error = f"PATCH {lead_id}: {e.response.status_code}" if e.response else str(e)
+                error = f"PATCH /{lead_id}: {e.response.status_code if e.response else str(e)}"
+                logger.warning(error)
+                errors.append(error)
             except Exception as e:
-                last_error = f"PATCH error: {str(e)}"
+                error = f"PATCH error: {str(e)}"
+                logger.warning(error)
+                errors.append(error)
 
-        # Approach 2: Re-add lead with custom variables (upsert)
+        # Approach 2: POST /leads to upsert
         if email and campaign_id:
             try:
-                lead_data = {
-                    "email": email,
-                    "custom_variables": variables,
-                }
+                logger.info(f"Trying POST /leads upsert for {email}")
                 body = {
                     "campaign_id": campaign_id,
-                    "leads": [lead_data],
+                    "leads": [{
+                        "email": email,
+                        "custom_variables": variables,
+                    }],
                     "skip_if_in_workspace": False,
                     "skip_if_in_campaign": False,
                 }
                 self._request("POST", "/leads", json_data=body)
+                logger.info("POST /leads upsert succeeded!")
                 return (True, None)
             except requests.HTTPError as e:
-                upsert_error = f"POST /leads: {e.response.status_code}" if e.response else str(e)
-                last_error = f"{last_error}; {upsert_error}" if last_error else upsert_error
+                error = f"POST /leads: {e.response.status_code if e.response else str(e)}"
+                logger.warning(error)
+                errors.append(error)
             except Exception as e:
-                upsert_error = f"Upsert error: {str(e)}"
-                last_error = f"{last_error}; {upsert_error}" if last_error else upsert_error
+                error = f"Upsert error: {str(e)}"
+                logger.warning(error)
+                errors.append(error)
 
-        # Approach 3: Try direct update endpoint
+        # Approach 3: Try with "campaign" parameter instead
         if email and campaign_id:
             try:
-                success, err = self.update_lead_direct(email, variables, campaign_id)
-                if success:
-                    return (True, None)
-                last_error = f"{last_error}; {err}" if last_error else err
-            except Exception as e:
-                direct_error = f"Direct update error: {str(e)}"
-                last_error = f"{last_error}; {direct_error}" if last_error else direct_error
-
-        return (False, last_error)
-
-    def update_lead_by_email(
-        self,
-        email: str,
-        variables: Dict[str, Any],
-        campaign_id: Optional[str] = None,
-    ) -> bool:
-        """
-        Update lead custom variables by email address.
-
-        Tries multiple approaches to ensure the update works.
-
-        Args:
-            email: Lead email address
-            variables: Dictionary of variable name -> value
-            campaign_id: Optional campaign ID
-
-        Returns:
-            True if update was successful
-        """
-        # Approach 1: Re-add the lead with custom variables (upsert style)
-        # In V2, adding a lead that exists will update its custom variables
-        if campaign_id:
-            try:
-                lead_data = {
-                    "email": email,
-                    "custom_variables": variables,
-                }
+                logger.info(f"Trying POST /leads with 'campaign' param for {email}")
                 body = {
-                    "campaign_id": campaign_id,
-                    "leads": [lead_data],
+                    "campaign": campaign_id,
+                    "leads": [{
+                        "email": email,
+                        "custom_variables": variables,
+                    }],
                     "skip_if_in_workspace": False,
-                    "skip_if_in_campaign": False,  # This allows updating existing leads
+                    "skip_if_in_campaign": False,
                 }
                 self._request("POST", "/leads", json_data=body)
-                return True
-            except requests.HTTPError:
-                pass
+                logger.info("POST /leads with campaign param succeeded!")
+                return (True, None)
+            except requests.HTTPError as e:
+                error = f"POST /leads (campaign): {e.response.status_code if e.response else str(e)}"
+                logger.warning(error)
+                errors.append(error)
 
-        # Approach 2: Try POST /leads/update endpoint
-        try:
-            body = {
-                "email": email,
-                "custom_variables": variables,
-            }
-            if campaign_id:
-                body["campaign_id"] = campaign_id
-
-            self._request("POST", "/leads/update", json_data=body)
-            return True
-        except requests.HTTPError:
-            pass
-
-        return False
-
-    def add_leads_to_campaign(
-        self,
-        campaign_id: str,
-        leads_data: List[Dict[str, Any]],
-        skip_if_in_workspace: bool = True,
-        skip_if_in_campaign: bool = True,
-    ) -> Dict[str, Any]:
-        """
-        Add multiple leads to a campaign.
-
-        Args:
-            campaign_id: Target campaign ID
-            leads_data: List of lead data dicts (must include 'email')
-            skip_if_in_workspace: Skip if lead exists in workspace
-            skip_if_in_campaign: Skip if lead already in campaign
-
-        Returns:
-            API response with upload status
-        """
-        body = {
-            "campaign_id": campaign_id,
-            "leads": leads_data,
-            "skip_if_in_workspace": skip_if_in_workspace,
-            "skip_if_in_campaign": skip_if_in_campaign,
-        }
-
-        return self._request("POST", "/leads", json_data=body)
+        return (False, "; ".join(errors))
 
     def test_connection(self) -> bool:
-        """
-        Test the API connection.
-
-        Returns:
-            True if connection successful
-        """
+        """Test the API connection."""
         try:
             self._request("GET", "/campaigns", params={"limit": 1})
             return True
@@ -462,7 +318,6 @@ class InstantlyClient:
             return False
 
 
-# Convenience function for quick testing
 def test_api_key(api_key: str) -> bool:
     """Test if an API key is valid."""
     client = InstantlyClient(api_key)
