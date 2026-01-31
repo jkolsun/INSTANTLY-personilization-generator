@@ -27,7 +27,6 @@ from line_generator import LineGenerator
 from validator import Validator
 from website_scraper import WebsiteScraper
 from instantly_client import InstantlyClient
-from instantly_sync import InstantlyPersonalizer
 
 
 # Page configuration
@@ -714,26 +713,27 @@ def render_instantly_page():
             )
             selected_campaign_id = campaign_options[selected_campaign_name]
 
-            col1, col2 = st.columns(2)
-            with col1:
-                limit = st.number_input(
-                    "Limit leads (0 = all)",
-                    min_value=0,
-                    value=100,
-                    help="Maximum number of leads to process",
-                )
-            with col2:
-                dry_run = st.checkbox(
-                    "Dry run (preview only)",
-                    value=True,
-                    help="Preview what would be done without updating Instantly",
-                )
+            limit = st.number_input(
+                "Limit leads (0 = all)",
+                min_value=0,
+                value=100,
+                help="Maximum number of leads to process",
+            )
+
+            enable_scraping = st.checkbox(
+                "Enable website scraping (recommended)",
+                value=True,
+                help="Scrape company websites for better personalization. Slower but much higher quality.",
+            )
 
             skip_existing = st.checkbox(
                 "Skip leads with existing personalization",
                 value=True,
                 help="Skip leads that already have a personalization_line set",
             )
+
+            if enable_scraping:
+                st.info("Website scraping enabled - this will take longer but produce much better results (Tier S/A instead of fallback).")
 
             st.markdown("---")
 
@@ -776,10 +776,12 @@ def render_instantly_page():
 
                 # Process button
                 if st.button("Process & Sync to Instantly", type="primary", use_container_width=True):
-                    personalizer = InstantlyPersonalizer(
-                        api_key=st.session_state.instantly_api_key,
-                        seed=42,
-                    )
+                    # Initialize components
+                    scraper = WebsiteScraper() if enable_scraping else None
+                    extractor = ArtifactExtractor()
+                    ranker = ArtifactRanker()
+                    generator = LineGenerator(seed=42)
+                    validator = Validator()
 
                     progress_bar = st.progress(0)
                     status_text = st.empty()
@@ -796,10 +798,84 @@ def render_instantly_page():
                                 stats["skipped"] += 1
                                 continue
 
-                            status_text.markdown(f"**Processing:** {lead.email} ({idx + 1}/{len(leads)})")
+                            company_name = lead.company_name or "Unknown"
+                            status_text.markdown(f"**Processing:** {company_name} ({idx + 1}/{len(leads)})")
 
-                            # Generate personalization
-                            variables = personalizer.personalize_lead(lead)
+                            # Get website URL from lead
+                            website_url = lead.company_domain
+                            if website_url and not website_url.startswith("http"):
+                                website_url = f"https://{website_url}"
+
+                            # Scrape website if enabled and URL available
+                            website_elements = None
+                            if enable_scraping and website_url:
+                                try:
+                                    website_elements = scraper.scrape_website(website_url)
+                                except Exception:
+                                    pass  # Graceful failure, will use description
+
+                            # Build description from lead data
+                            description_parts = []
+                            if lead.raw_data.get("company_description"):
+                                description_parts.append(lead.raw_data["company_description"])
+                            if lead.raw_data.get("summary"):
+                                description_parts.append(lead.raw_data["summary"])
+                            if lead.raw_data.get("headline"):
+                                description_parts.append(lead.raw_data["headline"])
+                            if lead.raw_data.get("industry"):
+                                description_parts.append(f"Industry: {lead.raw_data['industry']}")
+                            description = " ".join(description_parts)
+
+                            # Extract artifacts from website and description
+                            artifacts = extractor.extract_all(website_elements, description)
+
+                            # Add location if available
+                            location = lead.raw_data.get("location")
+                            if location and location.lower() not in ["no data found", "n/a", "skipped"]:
+                                for suffix in [", United States", ", USA", ", US"]:
+                                    if location.endswith(suffix):
+                                        location = location[:-len(suffix)]
+                                if location.lower() not in ["united states", "usa", "us"]:
+                                    artifacts.append(Artifact(
+                                        text=location,
+                                        artifact_type=ArtifactType.LOCATION,
+                                        evidence_source="instantly_lead",
+                                        evidence_url="",
+                                        score=1.0,
+                                    ))
+
+                            # Validate artifacts
+                            valid_artifacts = [a for a in artifacts if validator.validate_artifact(a).is_valid]
+
+                            # Select best artifact
+                            selected = ranker.select_with_fallback(valid_artifacts)
+
+                            # Generate line
+                            line = generator.generate(selected)
+
+                            # Validate line, try alternatives if needed
+                            validation = validator.validate(line, selected)
+                            if not validation.is_valid and len(valid_artifacts) > 1:
+                                ranked = ranker.rank_artifacts(valid_artifacts)
+                                for alt in ranked[1:]:
+                                    alt_line = generator.generate(alt)
+                                    if validator.validate(alt_line, alt).is_valid:
+                                        selected = alt
+                                        line = alt_line
+                                        break
+                                else:
+                                    selected = ranker.get_fallback_artifact()
+                                    line = generator.generate(selected)
+
+                            confidence = ranker.get_confidence_tier(selected)
+
+                            variables = {
+                                "personalization_line": line,
+                                "artifact_type": selected.artifact_type.value,
+                                "artifact_text": selected.text if selected.artifact_type != ArtifactType.FALLBACK else "",
+                                "confidence_tier": confidence.value,
+                                "evidence_source": selected.evidence_source,
+                            }
 
                             # Update stats
                             tier = variables["confidence_tier"]
@@ -813,10 +889,9 @@ def render_instantly_page():
                                 "artifact": variables["artifact_text"],
                             })
 
-                            if not dry_run:
-                                # Update lead in Instantly
-                                client = InstantlyClient(st.session_state.instantly_api_key)
-                                client.update_lead_variables(lead.id, variables)
+                            # Update lead in Instantly
+                            client = InstantlyClient(st.session_state.instantly_api_key)
+                            client.update_lead_variables(lead.id, variables)
 
                         except Exception as e:
                             stats["errors"] += 1
@@ -852,11 +927,7 @@ def render_instantly_page():
                     st.session_state.instantly_sync_stats = stats
 
                     status_text.markdown("**Processing complete!**")
-
-                    if dry_run:
-                        st.warning("This was a DRY RUN. No changes were made in Instantly.")
-                    else:
-                        st.success("Personalization synced to Instantly!")
+                    st.success("Personalization synced to Instantly!")
 
                     # Show results
                     with results_container:
