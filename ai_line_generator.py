@@ -53,10 +53,12 @@ ALWAYS use:
 - Factual observations
 - Conversational tone"""
 
-    def __init__(self, api_key: str, model: str = "claude-3-5-haiku-latest"):
+    def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
+        # Use older Claude 3 Haiku which is definitely available
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
+        logger.info(f"AI Generator initialized with model: {self.model}")
 
     def generate_line(
         self,
@@ -107,6 +109,9 @@ ALWAYS use:
         prompt = self._build_prompt(company_name, context)
 
         try:
+            logger.info(f"Calling Claude API with model={self.model} for {company_name}")
+            logger.info(f"Context length: {len(context)} chars")
+
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=300,
@@ -114,6 +119,7 @@ ALWAYS use:
                 messages=[{"role": "user", "content": prompt}],
             )
 
+            logger.info(f"Claude API SUCCESS for {company_name}")
             result = self._parse_response(response.content[0].text)
 
             # Validate and clean the output
@@ -121,9 +127,27 @@ ALWAYS use:
 
             return result
 
+        except anthropic.APIStatusError as e:
+            # Specific API status errors (401, 403, 404, 429, 500, etc.)
+            logger.error(f"Claude API Status Error: status={e.status_code}, message={e.message}")
+            return AIGeneratedLine(
+                line="Came across your company online.",
+                confidence_tier="B",
+                artifact_type="API_ERROR",
+                artifact_used=f"HTTP {e.status_code}",
+                reasoning=f"CLAUDE HTTP {e.status_code}: {e.message[:80]}",
+            )
+        except anthropic.APIConnectionError as e:
+            logger.error(f"Claude API Connection Error: {e}")
+            return AIGeneratedLine(
+                line="Came across your company online.",
+                confidence_tier="B",
+                artifact_type="CONNECTION_ERROR",
+                artifact_used="Connection failed",
+                reasoning=f"CONNECTION ERROR: {str(e)[:80]}",
+            )
         except anthropic.APIError as e:
             logger.error(f"Claude API error: {e}")
-            # Include full error in reasoning so it's visible in results
             return AIGeneratedLine(
                 line="Came across your company online.",
                 confidence_tier="B",
@@ -132,13 +156,13 @@ ALWAYS use:
                 reasoning=f"CLAUDE API FAILED: {str(e)[:100]}",
             )
         except Exception as e:
-            logger.error(f"Unexpected error in Claude generation: {e}")
+            logger.error(f"Unexpected error in Claude generation: {type(e).__name__}: {e}")
             return AIGeneratedLine(
                 line="Came across your company online.",
                 confidence_tier="B",
                 artifact_type="UNEXPECTED_ERROR",
-                artifact_used=str(e)[:100],
-                reasoning=f"UNEXPECTED ERROR: {str(e)[:100]}",
+                artifact_used=f"{type(e).__name__}",
+                reasoning=f"{type(e).__name__}: {str(e)[:80]}",
             )
 
     def _build_prompt(self, company_name: str, context: str) -> str:
