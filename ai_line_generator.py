@@ -53,7 +53,7 @@ ALWAYS use:
 - Factual observations
 - Conversational tone"""
 
-    def __init__(self, api_key: str, model: str = "claude-3-5-haiku-20241022"):
+    def __init__(self, api_key: str, model: str = "claude-3-5-haiku-latest"):
         """Initialize the AI line generator."""
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
