@@ -923,11 +923,16 @@ def render_instantly_page():
 
                     # AI generator or template-based fallback
                     ai_generator = None
+
+                    # DEBUG: Show what's happening with AI settings
+                    st.write(f"**DEBUG:** use_ai_generation={st.session_state.use_ai_generation}, anthropic_connected={st.session_state.anthropic_connected}, use_ai={use_ai}")
+                    st.write(f"**DEBUG:** API key present: {bool(st.session_state.anthropic_api_key)}, key starts with: {st.session_state.anthropic_api_key[:20] if st.session_state.anthropic_api_key else 'NONE'}...")
+
                     if use_ai:
                         ai_generator = AILineGenerator(st.session_state.anthropic_api_key)
-                        st.info("Using Claude AI for line generation")
+                        st.success("Using Claude AI for line generation")
                     else:
-                        st.info("Using template-based line generation")
+                        st.error("NOT using Claude AI - falling back to templates (THIS IS THE PROBLEM)")
                         extractor = ArtifactExtractor()
                         ranker = ArtifactRanker()
                         generator = LineGenerator(seed=42)
