@@ -118,13 +118,21 @@ def init_session_state():
         st.session_state.processing_stats = {}
     if "artifacts_log" not in st.session_state:
         st.session_state.artifacts_log = []
-    # Instantly integration
+    # Instantly integration - from env var
     if "instantly_api_key" not in st.session_state:
-        st.session_state.instantly_api_key = ""
+        st.session_state.instantly_api_key = os.environ.get("INSTANTLY_API_KEY", "")
     if "instantly_connected" not in st.session_state:
-        st.session_state.instantly_connected = False
+        # Auto-connect if env var is set
+        st.session_state.instantly_connected = bool(os.environ.get("INSTANTLY_API_KEY"))
     if "instantly_campaigns" not in st.session_state:
         st.session_state.instantly_campaigns = []
+        # Auto-fetch campaigns if connected via env var
+        if st.session_state.instantly_connected and st.session_state.instantly_api_key:
+            try:
+                client = InstantlyClient(st.session_state.instantly_api_key)
+                st.session_state.instantly_campaigns = client.list_campaigns()
+            except Exception:
+                pass
     if "instantly_leads" not in st.session_state:
         st.session_state.instantly_leads = []
     if "instantly_sync_stats" not in st.session_state:
