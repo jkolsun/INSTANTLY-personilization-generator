@@ -151,10 +151,12 @@ def init_session_state():
     if "anthropic_api_key" not in st.session_state:
         st.session_state.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if "anthropic_connected" not in st.session_state:
-        # Auto-connect if env var is set
-        st.session_state.anthropic_connected = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        # Auto-connect if env var is set and non-empty
+        env_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        st.session_state.anthropic_connected = bool(env_key)
     if "use_ai_generation" not in st.session_state:
-        st.session_state.use_ai_generation = True  # Default to AI generation
+        # Default to AI generation if Anthropic is connected
+        st.session_state.use_ai_generation = st.session_state.anthropic_connected
 
     # Auto-load saved results on first run
     if "results_loaded" not in st.session_state:
@@ -809,6 +811,7 @@ def render_instantly_page():
                         if test_anthropic_key(anthropic_key):
                             st.session_state.anthropic_api_key = anthropic_key
                             st.session_state.anthropic_connected = True
+                            st.session_state.use_ai_generation = True  # Enable AI when connected!
                             st.success("Claude API connected!")
                             st.rerun()
                         else:
@@ -821,11 +824,12 @@ def render_instantly_page():
             st.session_state.use_ai_generation = st.checkbox(
                 "Use AI-generated lines (recommended)",
                 value=st.session_state.use_ai_generation,
+                key="use_ai_checkbox",  # Explicit key for state persistence
                 help="When enabled, Claude writes personalization lines. When disabled, uses templates.",
             )
         else:
             st.warning("Add your Anthropic API key to enable AI-generated lines. Without it, template-based lines will be used.")
-            st.session_state.use_ai_generation = False
+            # Don't reset use_ai_generation here - it prevents re-enabling after connect
 
         st.markdown("---")
         st.subheader("Select Campaign")
@@ -924,9 +928,11 @@ def render_instantly_page():
                     # AI generator or template-based fallback
                     ai_generator = None
 
-                    # DEBUG: Show what's happening with AI settings
-                    st.write(f"**DEBUG:** use_ai_generation={st.session_state.use_ai_generation}, anthropic_connected={st.session_state.anthropic_connected}, use_ai={use_ai}")
-                    st.write(f"**DEBUG:** API key present: {bool(st.session_state.anthropic_api_key)}, key starts with: {st.session_state.anthropic_api_key[:20] if st.session_state.anthropic_api_key else 'NONE'}...")
+                    # Show clear status about AI mode
+                    if use_ai:
+                        st.info(f"✓ AI Mode: Claude will generate personalization lines")
+                    else:
+                        st.error(f"✗ AI Mode DISABLED - Using template fallback. Check: use_ai_generation={st.session_state.use_ai_generation}, anthropic_connected={st.session_state.anthropic_connected}")
 
                     if use_ai:
                         ai_generator = AILineGenerator(st.session_state.anthropic_api_key)
