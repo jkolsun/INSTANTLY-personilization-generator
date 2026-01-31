@@ -853,6 +853,12 @@ def render_instantly_page():
                 help="Skip leads that already have a personalization_line set",
             )
 
+            preview_only = st.checkbox(
+                "Preview only (don't push to Instantly)",
+                value=False,
+                help="Generate lines but don't update Instantly - for testing",
+            )
+
             st.info("Using Serper API for fast, high-quality company research (~1 sec per lead)")
 
             st.markdown("---")
@@ -926,6 +932,9 @@ def render_instantly_page():
                         ranker = ArtifactRanker()
                         generator = LineGenerator(seed=42)
                         validator = Validator()
+
+                    if preview_only:
+                        st.warning("PREVIEW MODE: Lines will NOT be pushed to Instantly")
 
                     progress_bar = st.progress(0)
                     status_text = st.empty()
@@ -1065,13 +1074,19 @@ def render_instantly_page():
                             tier = variables["confidence_tier"]
                             stats[tier] = stats.get(tier, 0) + 1
 
-                            # Update lead in Instantly using upsert approach
-                            update_success, error_msg = instantly_client.update_lead_variables(
-                                lead_id=lead.id,
-                                variables=variables,
-                                email=lead.email,
-                                campaign_id=selected_campaign_id,
-                            )
+                            # Update lead in Instantly (unless preview only)
+                            if preview_only:
+                                update_success = True
+                                error_msg = None
+                                sync_status = "Preview"
+                            else:
+                                update_success, error_msg = instantly_client.update_lead_variables(
+                                    lead_id=lead.id,
+                                    variables=variables,
+                                    email=lead.email,
+                                    campaign_id=selected_campaign_id,
+                                )
+                                sync_status = "Yes" if update_success else "FAILED"
 
                             results_log.append({
                                 "email": lead.email,
@@ -1079,7 +1094,7 @@ def render_instantly_page():
                                 "line": variables["personalization_line"],
                                 "tier": tier,
                                 "artifact": variables["artifact_text"],
-                                "synced": "Yes" if update_success else "FAILED",
+                                "synced": sync_status,
                                 "error": error_msg[:100] if error_msg else "",
                             })
 
