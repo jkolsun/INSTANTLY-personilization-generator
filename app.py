@@ -5,7 +5,10 @@ Streamlit Dashboard for the Personalization Line Engine
 Run with: streamlit run app.py
 """
 import io
+import json
+import os
 import time
+from datetime import datetime
 from typing import List, Optional, Tuple
 
 import pandas as pd
@@ -28,6 +31,47 @@ from validator import Validator
 from website_scraper import WebsiteScraper
 from instantly_client import InstantlyClient
 from serper_client import SerperClient, extract_artifacts_from_serper
+
+
+# Data persistence directory
+DATA_DIR = "saved_results"
+RESULTS_FILE = os.path.join(DATA_DIR, "instantly_results.json")
+
+
+def ensure_data_dir():
+    """Create data directory if it doesn't exist."""
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+
+
+def save_results(results_log: List[dict], stats: dict, campaign_name: str = ""):
+    """Save results to a JSON file for persistence."""
+    ensure_data_dir()
+    data = {
+        "saved_at": datetime.now().isoformat(),
+        "campaign_name": campaign_name,
+        "stats": stats,
+        "results": results_log,
+    }
+    with open(RESULTS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_saved_results() -> Optional[dict]:
+    """Load previously saved results if they exist."""
+    if os.path.exists(RESULTS_FILE):
+        try:
+            with open(RESULTS_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return None
+    return None
+
+
+def delete_saved_results():
+    """Delete saved results file."""
+    if os.path.exists(RESULTS_FILE):
+        os.remove(RESULTS_FILE)
 
 
 # Page configuration
@@ -88,9 +132,21 @@ def init_session_state():
         st.session_state.instantly_results_log = []
     if "instantly_sync_complete" not in st.session_state:
         st.session_state.instantly_sync_complete = False
+    if "saved_campaign_name" not in st.session_state:
+        st.session_state.saved_campaign_name = ""
     # Serper API key (hardcoded for now)
     if "serper_api_key" not in st.session_state:
         st.session_state.serper_api_key = "2e396f4a9a63bd80b9c15e4857addd053b3747ec"
+
+    # Auto-load saved results on first run
+    if "results_loaded" not in st.session_state:
+        st.session_state.results_loaded = True
+        saved = load_saved_results()
+        if saved:
+            st.session_state.instantly_results_log = saved.get("results", [])
+            st.session_state.instantly_sync_stats = saved.get("stats", {})
+            st.session_state.instantly_sync_complete = bool(saved.get("results"))
+            st.session_state.saved_campaign_name = saved.get("campaign_name", "")
 
 
 def process_single_row(
@@ -934,8 +990,12 @@ def render_instantly_page():
                     st.session_state.instantly_sync_stats = stats
                     st.session_state.instantly_results_log = results_log
                     st.session_state.instantly_sync_complete = True
+                    st.session_state.saved_campaign_name = selected_campaign_name
 
-                    status_text.markdown("**Processing complete!**")
+                    # Auto-save to file for persistence across refreshes
+                    save_results(results_log, stats, selected_campaign_name)
+
+                    status_text.markdown("**Processing complete! Results saved.**")
 
                     # Count sync failures
                     failed_syncs = sum(1 for r in results_log if r.get("synced") == "FAILED")
@@ -961,10 +1021,18 @@ def render_instantly_page():
 
                     st.balloons()
 
-            # Show previous results if they exist (persist across navigation)
+            # Show previous results if they exist (persist across navigation AND page refresh)
             elif st.session_state.instantly_sync_complete and st.session_state.instantly_results_log:
                 st.markdown("---")
-                st.subheader("Previous Sync Results")
+
+                # Show campaign name if available
+                campaign_label = st.session_state.get("saved_campaign_name", "")
+                if campaign_label:
+                    st.subheader(f"Saved Results: {campaign_label}")
+                else:
+                    st.subheader("Saved Results")
+
+                st.info(f"Results are auto-saved and will persist across page refreshes. {len(st.session_state.instantly_results_log)} leads loaded.")
 
                 stats = st.session_state.instantly_sync_stats
                 col1, col2, col3, col4 = st.columns(4)
@@ -980,19 +1048,25 @@ def render_instantly_page():
                 results_df = pd.DataFrame(st.session_state.instantly_results_log)
                 st.dataframe(results_df, width="stretch", hide_index=True)
 
-                csv = results_df.to_csv(index=False)
-                st.download_button(
-                    "Download Results CSV",
-                    data=csv,
-                    file_name="instantly_sync_results.csv",
-                    mime="text/csv",
-                )
+                col1, col2 = st.columns(2)
+                with col1:
+                    csv = results_df.to_csv(index=False)
+                    st.download_button(
+                        "Download Results CSV",
+                        data=csv,
+                        file_name="instantly_sync_results.csv",
+                        mime="text/csv",
+                        width="stretch",
+                    )
 
-                if st.button("Clear Results & Start New Sync"):
-                    st.session_state.instantly_results_log = []
-                    st.session_state.instantly_sync_complete = False
-                    st.session_state.instantly_sync_stats = {}
-                    st.rerun()
+                with col2:
+                    if st.button("Clear Saved Results & Start New", width="stretch"):
+                        st.session_state.instantly_results_log = []
+                        st.session_state.instantly_sync_complete = False
+                        st.session_state.instantly_sync_stats = {}
+                        st.session_state.saved_campaign_name = ""
+                        delete_saved_results()  # Delete the file too
+                        st.rerun()
 
         else:
             st.warning("No campaigns found in your Instantly account.")
