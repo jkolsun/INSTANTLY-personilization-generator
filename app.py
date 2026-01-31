@@ -959,7 +959,7 @@ def render_instantly_page():
                     stats_display = st.empty()
                     results_container = st.container()
 
-                    stats = {"S": 0, "A": 0, "B": 0, "errors": 0, "skipped": 0, "serper_success": 0, "serper_fail": 0}
+                    stats = {"S": 0, "A": 0, "B": 0, "errors": 0, "skipped": 0, "serper_success": 0, "serper_fail": 0, "claude_success": 0, "claude_fail": 0}
                     results_log = []
 
                     for idx, lead in enumerate(leads):
@@ -1024,12 +1024,21 @@ def render_instantly_page():
                                     lead_data=lead_data,
                                 )
 
+                                # Track Claude success/failure
+                                if ai_result.artifact_type in ["API_ERROR", "UNEXPECTED_ERROR", "FALLBACK"]:
+                                    stats["claude_fail"] += 1
+                                    logging.error(f"Claude FAILED for {company_name}: {ai_result.reasoning}")
+                                else:
+                                    stats["claude_success"] += 1
+                                    logging.info(f"Claude SUCCESS for {company_name}: {ai_result.line[:50]}")
+
                                 variables = {
                                     "personalization_line": ai_result.line,
                                     "artifact_type": ai_result.artifact_type,
                                     "artifact_text": ai_result.artifact_used,
                                     "confidence_tier": ai_result.confidence_tier,
                                     "evidence_source": "claude_ai" + ("+serper" if has_serper_data else ""),
+                                    "ai_reasoning": ai_result.reasoning,  # Include reasoning for debugging
                                 }
                             else:
                                 # Fallback to template-based generation
@@ -1103,11 +1112,9 @@ def render_instantly_page():
 
                             # Update lead in Instantly (unless preview only)
                             if preview_only:
-                                update_success = True
-                                error_msg = None
                                 sync_status = "Preview"
                             else:
-                                update_success, error_msg = instantly_client.update_lead_variables(
+                                update_success, _ = instantly_client.update_lead_variables(
                                     lead_id=lead.id,
                                     variables=variables,
                                     email=lead.email,
@@ -1115,15 +1122,19 @@ def render_instantly_page():
                                 )
                                 sync_status = "Yes" if update_success else "FAILED"
 
+                            # Get AI reasoning if available (for debugging)
+                            ai_reason = variables.get("ai_reasoning", "")
+
                             results_log.append({
                                 "email": lead.email,
                                 "company": lead.company_name,
                                 "line": variables["personalization_line"],
                                 "tier": tier,
-                                "artifact": variables["artifact_text"],
+                                "type": variables.get("artifact_type", ""),
+                                "artifact": variables["artifact_text"][:50] if variables["artifact_text"] else "",
                                 "source": "Serper" if has_serper_data else "Lead data",
+                                "ai_status": "OK" if ai_reason and "FAILED" not in ai_reason and "ERROR" not in ai_reason else ("FAILED: " + ai_reason[:40] if ai_reason else "N/A"),
                                 "synced": sync_status,
-                                "error": error_msg[:100] if error_msg else "",
                             })
 
                         except Exception as e:
@@ -1158,6 +1169,8 @@ def render_instantly_page():
                         | High Confidence | {high_conf_pct:.1f}% |
                         | Serper Success | {stats['serper_success']} |
                         | Serper No Data | {stats['serper_fail']} |
+                        | **Claude Success** | **{stats['claude_success']}** |
+                        | **Claude FAILED** | **{stats['claude_fail']}** |
                         | Errors | {stats['errors']} |
                         """)
 

@@ -123,12 +123,22 @@ ALWAYS use:
 
         except anthropic.APIError as e:
             logger.error(f"Claude API error: {e}")
+            # Include full error in reasoning so it's visible in results
             return AIGeneratedLine(
                 line="Came across your company online.",
                 confidence_tier="B",
-                artifact_type="FALLBACK",
-                artifact_used="",
-                reasoning=f"API error: {str(e)[:50]}",
+                artifact_type="API_ERROR",
+                artifact_used=str(e)[:100],
+                reasoning=f"CLAUDE API FAILED: {str(e)[:100]}",
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error in Claude generation: {e}")
+            return AIGeneratedLine(
+                line="Came across your company online.",
+                confidence_tier="B",
+                artifact_type="UNEXPECTED_ERROR",
+                artifact_used=str(e)[:100],
+                reasoning=f"UNEXPECTED ERROR: {str(e)[:100]}",
             )
 
     def _build_prompt(self, company_name: str, context: str) -> str:
