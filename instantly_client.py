@@ -258,18 +258,105 @@ class InstantlyClient:
         self,
         lead_id: str,
         variables: Dict[str, Any],
-    ) -> Lead:
+        email: Optional[str] = None,
+        campaign_id: Optional[str] = None,
+    ) -> bool:
         """
-        Update only the custom variables on a lead.
+        Update custom variables on a lead.
+
+        In V2 API, the most reliable way to set custom variables is to use the
+        add leads endpoint with skip_if_in_campaign=False, which acts as an upsert.
 
         Args:
             lead_id: The lead ID
             variables: Dictionary of variable name -> value
+            email: Lead email (required for upsert approach)
+            campaign_id: Campaign ID for the lead
 
         Returns:
-            Updated Lead object
+            True if update was successful
         """
-        return self.update_lead(lead_id, custom_variables=variables)
+        # Primary approach: Re-add lead with custom variables (upsert)
+        # This is the most reliable method for V2 API
+        if email and campaign_id:
+            try:
+                lead_data = {
+                    "email": email,
+                    "custom_variables": variables,
+                }
+                body = {
+                    "campaign_id": campaign_id,
+                    "leads": [lead_data],
+                    "skip_if_in_workspace": False,
+                    "skip_if_in_campaign": False,
+                }
+                self._request("POST", "/leads", json_data=body)
+                return True
+            except requests.HTTPError:
+                pass
+
+        # Fallback: Try the standard PATCH on lead ID
+        try:
+            self.update_lead(lead_id, custom_variables=variables)
+            return True
+        except requests.HTTPError:
+            pass
+
+        return False
+
+    def update_lead_by_email(
+        self,
+        email: str,
+        variables: Dict[str, Any],
+        campaign_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Update lead custom variables by email address.
+
+        Tries multiple approaches to ensure the update works.
+
+        Args:
+            email: Lead email address
+            variables: Dictionary of variable name -> value
+            campaign_id: Optional campaign ID
+
+        Returns:
+            True if update was successful
+        """
+        # Approach 1: Re-add the lead with custom variables (upsert style)
+        # In V2, adding a lead that exists will update its custom variables
+        if campaign_id:
+            try:
+                lead_data = {
+                    "email": email,
+                    "custom_variables": variables,
+                }
+                body = {
+                    "campaign_id": campaign_id,
+                    "leads": [lead_data],
+                    "skip_if_in_workspace": False,
+                    "skip_if_in_campaign": False,  # This allows updating existing leads
+                }
+                self._request("POST", "/leads", json_data=body)
+                return True
+            except requests.HTTPError:
+                pass
+
+        # Approach 2: Try POST /leads/update endpoint
+        try:
+            body = {
+                "email": email,
+                "custom_variables": variables,
+            }
+            if campaign_id:
+                body["campaign_id"] = campaign_id
+
+            self._request("POST", "/leads/update", json_data=body)
+            return True
+        except requests.HTTPError:
+            pass
+
+        return False
 
     def add_leads_to_campaign(
         self,

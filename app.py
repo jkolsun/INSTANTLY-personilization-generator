@@ -27,6 +27,7 @@ from line_generator import LineGenerator
 from validator import Validator
 from website_scraper import WebsiteScraper
 from instantly_client import InstantlyClient
+from serper_client import SerperClient, extract_artifacts_from_serper
 
 
 # Page configuration
@@ -83,6 +84,9 @@ def init_session_state():
         st.session_state.instantly_leads = []
     if "instantly_sync_stats" not in st.session_state:
         st.session_state.instantly_sync_stats = {}
+    # Serper API key (hardcoded for now)
+    if "serper_api_key" not in st.session_state:
+        st.session_state.serper_api_key = "2e396f4a9a63bd80b9c15e4857addd053b3747ec"
 
 
 def process_single_row(
@@ -720,20 +724,13 @@ def render_instantly_page():
                 help="Maximum number of leads to process",
             )
 
-            enable_scraping = st.checkbox(
-                "Enable website scraping (recommended)",
-                value=True,
-                help="Scrape company websites for better personalization. Slower but much higher quality.",
-            )
-
             skip_existing = st.checkbox(
                 "Skip leads with existing personalization",
                 value=True,
                 help="Skip leads that already have a personalization_line set",
             )
 
-            if enable_scraping:
-                st.info("Website scraping enabled - this will take longer but produce much better results (Tier S/A instead of fallback).")
+            st.info("Using Serper API for fast, high-quality company research (~1 sec per lead)")
 
             st.markdown("---")
 
@@ -777,7 +774,7 @@ def render_instantly_page():
                 # Process button
                 if st.button("Process & Sync to Instantly", type="primary", use_container_width=True):
                     # Initialize components
-                    scraper = WebsiteScraper() if enable_scraping else None
+                    serper = SerperClient(st.session_state.serper_api_key)
                     extractor = ArtifactExtractor()
                     ranker = ArtifactRanker()
                     generator = LineGenerator(seed=42)
@@ -799,23 +796,21 @@ def render_instantly_page():
                                 continue
 
                             company_name = lead.company_name or "Unknown"
+                            domain = lead.company_domain or ""
                             status_text.markdown(f"**Processing:** {company_name} ({idx + 1}/{len(leads)})")
 
-                            # Get website URL from lead
-                            website_url = lead.company_domain
-                            if website_url and not website_url.startswith("http"):
-                                website_url = f"https://{website_url}"
+                            # Use Serper to get rich company info (fast!)
+                            serper_description = ""
+                            try:
+                                company_info = serper.get_company_info(company_name, domain)
+                                serper_description = extract_artifacts_from_serper(company_info)
+                            except Exception:
+                                pass  # Graceful failure
 
-                            # Scrape website if enabled and URL available
-                            website_elements = None
-                            if enable_scraping and website_url:
-                                try:
-                                    website_elements = scraper.scrape_website(website_url)
-                                except Exception:
-                                    pass  # Graceful failure, will use description
-
-                            # Build description from lead data
+                            # Build description from lead data + Serper results
                             description_parts = []
+                            if serper_description:
+                                description_parts.append(serper_description)
                             if lead.raw_data.get("company_description"):
                                 description_parts.append(lead.raw_data["company_description"])
                             if lead.raw_data.get("summary"):
@@ -826,8 +821,8 @@ def render_instantly_page():
                                 description_parts.append(f"Industry: {lead.raw_data['industry']}")
                             description = " ".join(description_parts)
 
-                            # Extract artifacts from website and description
-                            artifacts = extractor.extract_all(website_elements, description)
+                            # Extract artifacts from combined description
+                            artifacts = extractor.extract_from_description(description)
 
                             # Add location if available
                             location = lead.raw_data.get("location")
@@ -881,17 +876,24 @@ def render_instantly_page():
                             tier = variables["confidence_tier"]
                             stats[tier] = stats.get(tier, 0) + 1
 
+                            # Update lead in Instantly using upsert approach
+                            client = InstantlyClient(st.session_state.instantly_api_key)
+                            update_success = client.update_lead_variables(
+                                lead_id=lead.id,
+                                variables=variables,
+                                email=lead.email,
+                                campaign_id=selected_campaign_id,
+                            )
+
+                            sync_status = "Yes" if update_success else "FAILED"
                             results_log.append({
                                 "email": lead.email,
                                 "company": lead.company_name,
                                 "line": variables["personalization_line"],
                                 "tier": tier,
                                 "artifact": variables["artifact_text"],
+                                "synced": sync_status,
                             })
-
-                            # Update lead in Instantly
-                            client = InstantlyClient(st.session_state.instantly_api_key)
-                            client.update_lead_variables(lead.id, variables)
 
                         except Exception as e:
                             stats["errors"] += 1
