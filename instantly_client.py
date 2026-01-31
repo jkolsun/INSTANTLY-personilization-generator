@@ -90,31 +90,44 @@ class InstantlyClient:
         params: Optional[Dict] = None,
         json_data: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-        """Make an API request with logging."""
+        """Make an API request with detailed logging."""
         url = f"{self.BASE_URL}{endpoint}"
 
-        logger.info(f"API Request: {method} {endpoint}")
+        logger.info(f"=== API Request: {method} {url} ===")
+        if params:
+            logger.info(f"Query params: {params}")
         if json_data:
             logger.info(f"Request body: {json_data}")
 
-        response = self.session.request(
-            method=method,
-            url=url,
-            params=params,
-            json=json_data,
-        )
+        try:
+            response = self.session.request(
+                method=method,
+                url=url,
+                params=params,
+                json=json_data,
+            )
+        except requests.RequestException as e:
+            logger.error(f"Request failed with exception: {e}")
+            raise
 
         # Rate limiting
         time.sleep(self.rate_limit_delay)
 
-        # Log response
+        # Log response details
         logger.info(f"Response status: {response.status_code}")
 
         if not response.ok:
-            logger.error(f"Error response: {response.text[:500]}")
+            logger.error(f"=== API ERROR {response.status_code} ===")
+            logger.error(f"Error response body: {response.text}")
+            logger.error(f"Request was: {method} {endpoint}")
+            if json_data:
+                logger.error(f"Request body was: {json_data}")
 
         response.raise_for_status()
-        return response.json()
+
+        result = response.json()
+        logger.info(f"Response has {len(result.get('items', []))} items" if 'items' in result else f"Response: {str(result)[:200]}")
+        return result
 
     def list_campaigns(self, limit: int = 100) -> List[Campaign]:
         """List all campaigns."""
@@ -161,8 +174,10 @@ class InstantlyClient:
         leads = []
         starting_after = None
 
+        logger.info(f"=== Listing leads for campaign: {campaign_id}, limit: {limit} ===")
+
         while True:
-            # Build request body - try "campaign" parameter (V2 style)
+            # Build request body - V2 uses "campaign" parameter
             body = {"limit": min(limit - len(leads), 100)}
 
             if campaign_id:
@@ -171,23 +186,32 @@ class InstantlyClient:
             if starting_after:
                 body["starting_after"] = starting_after
 
+            logger.info(f"Fetching batch with body: {body}")
+
             try:
                 response = self._request("POST", "/leads/list", json_data=body)
             except requests.HTTPError as e:
-                logger.error(f"Failed to list leads: {e}")
-                # Try with campaign_id instead
+                logger.error(f"Failed to list leads with 'campaign': {e}")
+                # Fallback: Try with campaign_id instead
                 if campaign_id and "campaign" in body:
+                    logger.info("Retrying with 'campaign_id' parameter instead...")
                     body["campaign_id"] = campaign_id
                     del body["campaign"]
                     try:
                         response = self._request("POST", "/leads/list", json_data=body)
-                    except requests.HTTPError:
+                    except requests.HTTPError as e2:
+                        logger.error(f"Also failed with 'campaign_id': {e2}")
                         break
                 else:
                     break
 
             items = response.get("items", [])
-            logger.info(f"Got {len(items)} leads in this batch")
+            logger.info(f"Batch returned {len(items)} leads")
+
+            if items:
+                # Log first lead's campaign to verify filtering
+                first_lead = items[0]
+                logger.info(f"First lead email: {first_lead.get('email')}, campaign: {first_lead.get('campaign')}")
 
             if not items:
                 break
@@ -201,7 +225,7 @@ class InstantlyClient:
 
             starting_after = next_starting_after
 
-        logger.info(f"Total leads fetched: {len(leads)}")
+        logger.info(f"=== Total leads fetched: {len(leads)} ===")
         return leads[:limit]
 
     def get_lead(self, lead_id: str) -> Lead:
@@ -244,27 +268,31 @@ class InstantlyClient:
             Tuple of (success: bool, error_message: str or None)
         """
         errors = []
+        logger.info(f"=== Updating lead: email={email}, id={lead_id}, campaign={campaign_id} ===")
+        logger.info(f"Variables to set: {variables}")
 
-        # Approach 1: PATCH on lead ID
+        # Approach 1: PATCH on lead ID (preferred method for updates)
         if lead_id:
             try:
-                logger.info(f"Trying PATCH /leads/{lead_id}")
+                logger.info(f"Approach 1: PATCH /leads/{lead_id}")
                 self.update_lead(lead_id, custom_variables=variables)
-                logger.info("PATCH succeeded!")
+                logger.info("SUCCESS: PATCH method worked!")
                 return (True, None)
             except requests.HTTPError as e:
-                error = f"PATCH /{lead_id}: {e.response.status_code if e.response else str(e)}"
+                status = e.response.status_code if e.response else "unknown"
+                body = e.response.text[:200] if e.response else str(e)
+                error = f"PATCH failed ({status}): {body}"
                 logger.warning(error)
                 errors.append(error)
             except Exception as e:
-                error = f"PATCH error: {str(e)}"
+                error = f"PATCH exception: {str(e)}"
                 logger.warning(error)
                 errors.append(error)
 
-        # Approach 2: POST /leads to upsert
+        # Approach 2: POST /leads to upsert with campaign_id
         if email and campaign_id:
             try:
-                logger.info(f"Trying POST /leads upsert for {email}")
+                logger.info(f"Approach 2: POST /leads upsert (campaign_id) for {email}")
                 body = {
                     "campaign_id": campaign_id,
                     "leads": [{
@@ -275,21 +303,23 @@ class InstantlyClient:
                     "skip_if_in_campaign": False,
                 }
                 self._request("POST", "/leads", json_data=body)
-                logger.info("POST /leads upsert succeeded!")
+                logger.info("SUCCESS: POST /leads with campaign_id worked!")
                 return (True, None)
             except requests.HTTPError as e:
-                error = f"POST /leads: {e.response.status_code if e.response else str(e)}"
+                status = e.response.status_code if e.response else "unknown"
+                body = e.response.text[:200] if e.response else str(e)
+                error = f"POST campaign_id failed ({status}): {body}"
                 logger.warning(error)
                 errors.append(error)
             except Exception as e:
-                error = f"Upsert error: {str(e)}"
+                error = f"Upsert exception: {str(e)}"
                 logger.warning(error)
                 errors.append(error)
 
-        # Approach 3: Try with "campaign" parameter instead
+        # Approach 3: POST /leads with "campaign" parameter (V2 alternative)
         if email and campaign_id:
             try:
-                logger.info(f"Trying POST /leads with 'campaign' param for {email}")
+                logger.info(f"Approach 3: POST /leads upsert (campaign) for {email}")
                 body = {
                     "campaign": campaign_id,
                     "leads": [{
@@ -300,21 +330,29 @@ class InstantlyClient:
                     "skip_if_in_campaign": False,
                 }
                 self._request("POST", "/leads", json_data=body)
-                logger.info("POST /leads with campaign param succeeded!")
+                logger.info("SUCCESS: POST /leads with campaign worked!")
                 return (True, None)
             except requests.HTTPError as e:
-                error = f"POST /leads (campaign): {e.response.status_code if e.response else str(e)}"
+                status = e.response.status_code if e.response else "unknown"
+                body = e.response.text[:200] if e.response else str(e)
+                error = f"POST campaign failed ({status}): {body}"
                 logger.warning(error)
                 errors.append(error)
 
+        logger.error(f"ALL APPROACHES FAILED for {email}: {errors}")
         return (False, "; ".join(errors))
 
     def test_connection(self) -> bool:
         """Test the API connection."""
+        logger.info("=== Testing Instantly API connection ===")
         try:
             self._request("GET", "/campaigns", params={"limit": 1})
+            logger.info("Connection test successful!")
             return True
-        except requests.HTTPError:
+        except requests.HTTPError as e:
+            logger.error(f"Connection test FAILED: {e}")
+            if e.response:
+                logger.error(f"Response: {e.response.text}")
             return False
 
 

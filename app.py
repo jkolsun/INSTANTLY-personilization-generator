@@ -192,7 +192,7 @@ def render_sidebar():
         st.markdown("---")
         st.markdown("**Quick Actions**")
 
-        if st.button("Clear All Data", use_container_width=True):
+        if st.button("Clear All Data", width="stretch"):
             st.session_state.df_input = None
             st.session_state.df_processed = None
             st.session_state.processing_complete = False
@@ -269,7 +269,7 @@ def render_upload_page():
         if not display_cols:
             display_cols = df.columns[:8].tolist()
 
-        st.dataframe(df[display_cols].head(10), use_container_width=True)
+        st.dataframe(df[display_cols].head(10), width="stretch")
 
         # All columns
         with st.expander("View All Columns"):
@@ -325,7 +325,7 @@ def render_process_page():
     st.markdown("---")
 
     # Process button
-    if st.button("Start Processing", type="primary", use_container_width=True):
+    if st.button("Start Processing", type="primary", width="stretch"):
         rows_to_process = df.head(limit) if limit > 0 else df
         total = len(rows_to_process)
 
@@ -474,7 +474,7 @@ def render_results_page():
             hole=0.4,
         )
         fig.update_traces(textposition="inside", textinfo="percent+label")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col2:
         st.subheader("Artifact Type Breakdown")
@@ -488,7 +488,7 @@ def render_results_page():
                 color_continuous_scale="Viridis",
             )
             fig.update_layout(showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     st.markdown("---")
 
@@ -522,7 +522,7 @@ def render_results_page():
 
     st.dataframe(
         display_df[display_cols],
-        use_container_width=True,
+        width="stretch",
         height=400,
     )
 
@@ -542,7 +542,7 @@ def render_results_page():
             data=csv,
             file_name="personalized_leads.csv",
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
 
     with col2:
@@ -554,7 +554,7 @@ def render_results_page():
             data=csv_high,
             file_name="high_confidence_leads.csv",
             mime="text/csv",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -631,7 +631,7 @@ def render_inspector_page():
                 artifacts_df = artifacts_df.sort_values(["tier_order", "Score"], ascending=[True, False])
                 artifacts_df = artifacts_df.drop("tier_order", axis=1)
 
-                st.dataframe(artifacts_df, use_container_width=True, hide_index=True)
+                st.dataframe(artifacts_df, width="stretch", hide_index=True)
                 st.markdown(f"**Total artifacts:** {len(artifacts)}")
             else:
                 st.info("No artifacts extracted for this lead.")
@@ -684,7 +684,7 @@ def render_instantly_page():
 
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Connect", type="primary", use_container_width=True):
+        if st.button("Connect", type="primary", width="stretch"):
             if api_key:
                 with st.spinner("Testing connection..."):
                     try:
@@ -739,7 +739,7 @@ def render_instantly_page():
             st.markdown("---")
 
             # Fetch leads button
-            if st.button("Fetch Leads", use_container_width=True):
+            if st.button("Fetch Leads", width="stretch"):
                 with st.spinner("Fetching leads from Instantly..."):
                     try:
                         client = InstantlyClient(st.session_state.instantly_api_key)
@@ -768,7 +768,7 @@ def render_instantly_page():
                         "Has Personalization": "Yes" if has_personalization else "No",
                     })
 
-                st.dataframe(pd.DataFrame(preview_data), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(preview_data), width="stretch", hide_index=True)
 
                 if len(leads) > 20:
                     st.caption(f"Showing 20 of {len(leads)} leads")
@@ -776,7 +776,7 @@ def render_instantly_page():
                 st.markdown("---")
 
                 # Process button
-                if st.button("Process & Sync to Instantly", type="primary", use_container_width=True):
+                if st.button("Process & Sync to Instantly", type="primary", width="stretch"):
                     # Initialize components
                     serper = SerperClient(st.session_state.serper_api_key)
                     extractor = ArtifactExtractor()
@@ -948,7 +948,7 @@ def render_instantly_page():
                     with results_container:
                         st.markdown("### Results")
                         results_df = pd.DataFrame(results_log)
-                        st.dataframe(results_df, use_container_width=True, hide_index=True)
+                        st.dataframe(results_df, width="stretch", hide_index=True)
 
                         # Download results
                         csv = results_df.to_csv(index=False)
@@ -978,7 +978,7 @@ def render_instantly_page():
                     st.metric("Errors", stats.get("errors", 0))
 
                 results_df = pd.DataFrame(st.session_state.instantly_results_log)
-                st.dataframe(results_df, use_container_width=True, hide_index=True)
+                st.dataframe(results_df, width="stretch", hide_index=True)
 
                 csv = results_df.to_csv(index=False)
                 st.download_button(
