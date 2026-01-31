@@ -6,3 +6,4 @@ tqdm>=4.64.0
 streamlit>=1.28.0
 plotly>=5.18.0
 flask>=2.3.0
+anthropic>=0.40.0

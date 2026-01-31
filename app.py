@@ -31,6 +31,7 @@ from validator import Validator
 from website_scraper import WebsiteScraper
 from instantly_client import InstantlyClient
 from serper_client import SerperClient, extract_artifacts_from_serper
+from ai_line_generator import AILineGenerator, test_api_key as test_anthropic_key
 
 
 # Data persistence directory
@@ -137,6 +138,13 @@ def init_session_state():
     # Serper API key (hardcoded for now)
     if "serper_api_key" not in st.session_state:
         st.session_state.serper_api_key = "2e396f4a9a63bd80b9c15e4857addd053b3747ec"
+    # Anthropic API for AI-generated lines
+    if "anthropic_api_key" not in st.session_state:
+        st.session_state.anthropic_api_key = ""
+    if "anthropic_connected" not in st.session_state:
+        st.session_state.anthropic_connected = False
+    if "use_ai_generation" not in st.session_state:
+        st.session_state.use_ai_generation = True  # Default to AI generation
 
     # Auto-load saved results on first run
     if "results_loaded" not in st.session_state:
@@ -765,6 +773,51 @@ def render_instantly_page():
         st.success("Connected to Instantly")
 
         st.markdown("---")
+
+        # Anthropic API Key section
+        st.subheader("AI Line Generation (Claude)")
+        st.markdown("""
+        Use Claude AI to generate intelligent, context-aware personalization lines instead of templates.
+        This produces much higher quality, natural-sounding lines.
+        """)
+
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            anthropic_key = st.text_input(
+                "Anthropic API Key",
+                value=st.session_state.anthropic_api_key,
+                type="password",
+                help="Your Anthropic API key from console.anthropic.com",
+            )
+
+        with col2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Connect", key="anthropic_connect", width="stretch"):
+                if anthropic_key:
+                    with st.spinner("Testing connection..."):
+                        if test_anthropic_key(anthropic_key):
+                            st.session_state.anthropic_api_key = anthropic_key
+                            st.session_state.anthropic_connected = True
+                            st.success("Claude API connected!")
+                            st.rerun()
+                        else:
+                            st.error("Invalid API key. Check console.anthropic.com")
+                else:
+                    st.warning("Please enter your Anthropic API key.")
+
+        if st.session_state.anthropic_connected:
+            st.success("Claude AI Ready")
+            st.session_state.use_ai_generation = st.checkbox(
+                "Use AI-generated lines (recommended)",
+                value=st.session_state.use_ai_generation,
+                help="When enabled, Claude writes personalization lines. When disabled, uses templates.",
+            )
+        else:
+            st.warning("Add your Anthropic API key to enable AI-generated lines. Without it, template-based lines will be used.")
+            st.session_state.use_ai_generation = False
+
+        st.markdown("---")
         st.subheader("Select Campaign")
 
         campaigns = st.session_state.instantly_campaigns
@@ -835,10 +888,19 @@ def render_instantly_page():
                 if st.button("Process & Sync to Instantly", type="primary", width="stretch"):
                     # Initialize components
                     serper = SerperClient(st.session_state.serper_api_key)
-                    extractor = ArtifactExtractor()
-                    ranker = ArtifactRanker()
-                    generator = LineGenerator(seed=42)
-                    validator = Validator()
+                    use_ai = st.session_state.use_ai_generation and st.session_state.anthropic_connected
+
+                    # AI generator or template-based fallback
+                    ai_generator = None
+                    if use_ai:
+                        ai_generator = AILineGenerator(st.session_state.anthropic_api_key)
+                        st.info("Using Claude AI for line generation")
+                    else:
+                        st.info("Using template-based line generation")
+                        extractor = ArtifactExtractor()
+                        ranker = ArtifactRanker()
+                        generator = LineGenerator(seed=42)
+                        validator = Validator()
 
                     progress_bar = st.progress(0)
                     status_text = st.empty()
@@ -867,70 +929,95 @@ def render_instantly_page():
                             except Exception:
                                 pass  # Graceful failure
 
-                            # Build description from lead data + Serper results
-                            description_parts = []
-                            if serper_description:
-                                description_parts.append(serper_description)
-                            if lead.raw_data.get("company_description"):
-                                description_parts.append(lead.raw_data["company_description"])
-                            if lead.raw_data.get("summary"):
-                                description_parts.append(lead.raw_data["summary"])
-                            if lead.raw_data.get("headline"):
-                                description_parts.append(lead.raw_data["headline"])
-                            if lead.raw_data.get("industry"):
-                                description_parts.append(f"Industry: {lead.raw_data['industry']}")
-                            description = " ".join(description_parts)
-
-                            # Extract artifacts from combined description
-                            artifacts = extractor.extract_from_description(description)
-
-                            # Add location if available
-                            location = lead.raw_data.get("location")
-                            if location and location.lower() not in ["no data found", "n/a", "skipped"]:
-                                for suffix in [", United States", ", USA", ", US"]:
-                                    if location.endswith(suffix):
-                                        location = location[:-len(suffix)]
-                                if location.lower() not in ["united states", "usa", "us"]:
-                                    artifacts.append(Artifact(
-                                        text=location,
-                                        artifact_type=ArtifactType.LOCATION,
-                                        evidence_source="instantly_lead",
-                                        evidence_url="",
-                                        score=1.0,
-                                    ))
-
-                            # Validate artifacts
-                            valid_artifacts = [a for a in artifacts if validator.validate_artifact(a).is_valid]
-
-                            # Select best artifact
-                            selected = ranker.select_with_fallback(valid_artifacts)
-
-                            # Generate line
-                            line = generator.generate(selected)
-
-                            # Validate line, try alternatives if needed
-                            validation = validator.validate(line, selected)
-                            if not validation.is_valid and len(valid_artifacts) > 1:
-                                ranked = ranker.rank_artifacts(valid_artifacts)
-                                for alt in ranked[1:]:
-                                    alt_line = generator.generate(alt)
-                                    if validator.validate(alt_line, alt).is_valid:
-                                        selected = alt
-                                        line = alt_line
-                                        break
-                                else:
-                                    selected = ranker.get_fallback_artifact()
-                                    line = generator.generate(selected)
-
-                            confidence = ranker.get_confidence_tier(selected)
-
-                            variables = {
-                                "personalization_line": line,
-                                "artifact_type": selected.artifact_type.value,
-                                "artifact_text": selected.text if selected.artifact_type != ArtifactType.FALLBACK else "",
-                                "confidence_tier": confidence.value,
-                                "evidence_source": selected.evidence_source,
+                            # Build lead data dict for AI generator
+                            lead_data = {
+                                "company_description": lead.raw_data.get("company_description", ""),
+                                "summary": lead.raw_data.get("summary", ""),
+                                "headline": lead.raw_data.get("headline", ""),
+                                "industry": lead.raw_data.get("industry", ""),
+                                "location": lead.raw_data.get("location", ""),
                             }
+
+                            if use_ai and ai_generator:
+                                # Use Claude AI to generate the line
+                                ai_result = ai_generator.generate_line(
+                                    company_name=company_name,
+                                    serper_data=serper_description,
+                                    lead_data=lead_data,
+                                )
+
+                                variables = {
+                                    "personalization_line": ai_result.line,
+                                    "artifact_type": ai_result.artifact_type,
+                                    "artifact_text": ai_result.artifact_used,
+                                    "confidence_tier": ai_result.confidence_tier,
+                                    "evidence_source": "claude_ai",
+                                }
+                            else:
+                                # Fallback to template-based generation
+                                description_parts = []
+                                if serper_description:
+                                    description_parts.append(serper_description)
+                                if lead.raw_data.get("company_description"):
+                                    description_parts.append(lead.raw_data["company_description"])
+                                if lead.raw_data.get("summary"):
+                                    description_parts.append(lead.raw_data["summary"])
+                                if lead.raw_data.get("headline"):
+                                    description_parts.append(lead.raw_data["headline"])
+                                if lead.raw_data.get("industry"):
+                                    description_parts.append(f"Industry: {lead.raw_data['industry']}")
+                                description = " ".join(description_parts)
+
+                                # Extract artifacts from combined description
+                                artifacts = extractor.extract_from_description(description)
+
+                                # Add location if available
+                                location = lead.raw_data.get("location")
+                                if location and location.lower() not in ["no data found", "n/a", "skipped"]:
+                                    for suffix in [", United States", ", USA", ", US"]:
+                                        if location.endswith(suffix):
+                                            location = location[:-len(suffix)]
+                                    if location.lower() not in ["united states", "usa", "us"]:
+                                        artifacts.append(Artifact(
+                                            text=location,
+                                            artifact_type=ArtifactType.LOCATION,
+                                            evidence_source="instantly_lead",
+                                            evidence_url="",
+                                            score=1.0,
+                                        ))
+
+                                # Validate artifacts
+                                valid_artifacts = [a for a in artifacts if validator.validate_artifact(a).is_valid]
+
+                                # Select best artifact
+                                selected = ranker.select_with_fallback(valid_artifacts)
+
+                                # Generate line
+                                line = generator.generate(selected)
+
+                                # Validate line, try alternatives if needed
+                                validation = validator.validate(line, selected)
+                                if not validation.is_valid and len(valid_artifacts) > 1:
+                                    ranked = ranker.rank_artifacts(valid_artifacts)
+                                    for alt in ranked[1:]:
+                                        alt_line = generator.generate(alt)
+                                        if validator.validate(alt_line, alt).is_valid:
+                                            selected = alt
+                                            line = alt_line
+                                            break
+                                    else:
+                                        selected = ranker.get_fallback_artifact()
+                                        line = generator.generate(selected)
+
+                                confidence = ranker.get_confidence_tier(selected)
+
+                                variables = {
+                                    "personalization_line": line,
+                                    "artifact_type": selected.artifact_type.value,
+                                    "artifact_text": selected.text if selected.artifact_type != ArtifactType.FALLBACK else "",
+                                    "confidence_tier": confidence.value,
+                                    "evidence_source": selected.evidence_source,
+                                }
 
                             # Update stats
                             tier = variables["confidence_tier"]
