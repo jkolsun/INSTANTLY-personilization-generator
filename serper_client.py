@@ -1,13 +1,16 @@
 """
-Serper API client for comprehensive company information lookup.
+Serper API client for company information lookup.
 
-Searches Google, LinkedIn, social media, podcasts, and news
-to find the best personalization hooks for each company.
+Optimized for efficiency: 1-2 API calls per company instead of 6.
+Focuses on finding the BEST personalization hooks fast.
 """
 import re
+import logging
 import requests
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -21,7 +24,7 @@ class SerperResult:
 
 @dataclass
 class CompanyInfo:
-    """Aggregated company information from multiple search sources."""
+    """Aggregated company information from search."""
     name: str
     description: str
     snippets: List[str] = field(default_factory=list)
@@ -31,34 +34,37 @@ class CompanyInfo:
     awards: List[str] = field(default_factory=list)
     podcasts: List[str] = field(default_factory=list)
     linkedin_info: List[str] = field(default_factory=list)
-    social_mentions: List[str] = field(default_factory=list)
     news_mentions: List[str] = field(default_factory=list)
     recent_projects: List[str] = field(default_factory=list)
     location: Optional[str] = None
     knowledge_panel: Optional[Dict[str, Any]] = None
 
 
+# Known tools/platforms to look for (Tier S artifacts)
+KNOWN_TOOLS = [
+    "ServiceTitan", "HubSpot", "Salesforce", "QuickBooks", "Jobber",
+    "Housecall Pro", "Zendesk", "Monday.com", "Asana", "Slack",
+    "Mailchimp", "ActiveCampaign", "Podium", "Birdeye", "Workiz",
+    "FieldEdge", "Simpro", "Zoho", "Freshworks", "Pipedrive",
+    "Shopify", "WooCommerce", "Squarespace", "WordPress", "Webflow",
+    "Stripe", "Square", "PayPal", "Calendly", "Acuity", "Intercom",
+    "Drift", "Klaviyo", "Marketo", "Pardot", "Outreach", "Gong",
+    "Chorus", "ZoomInfo", "Apollo", "Lusha", "Clearbit", "6sense",
+]
+
+
 class SerperClient:
     """
-    Client for Serper.dev Google Search API.
+    Efficient Serper.dev Google Search API client.
 
-    Performs multiple targeted searches to find the best personalization hooks:
-    - LinkedIn company info and posts
-    - Social media mentions (Twitter, Facebook, Instagram)
-    - Podcast appearances
-    - News mentions and press releases
-    - Company website and services
+    Makes only 1-2 API calls per company to minimize cost while
+    maximizing personalization hook quality.
     """
 
     BASE_URL = "https://google.serper.dev/search"
 
     def __init__(self, api_key: str):
-        """
-        Initialize the Serper client.
-
-        Args:
-            api_key: Serper API key from serper.dev
-        """
+        """Initialize the Serper client."""
         self.api_key = api_key
         self.session = requests.Session()
         self.session.headers.update({
@@ -76,6 +82,9 @@ class SerperClient:
 
         Returns:
             Raw API response
+
+        Raises:
+            requests.HTTPError: If API call fails
         """
         payload = {
             "q": query,
@@ -88,176 +97,86 @@ class SerperClient:
 
     def get_company_info(self, company_name: str, domain: Optional[str] = None) -> CompanyInfo:
         """
-        Get comprehensive company information using multiple targeted searches.
+        Get company information with ONE optimized search query.
+
+        Uses a single, comprehensive search query that returns
+        LinkedIn, website, and other valuable data in one call.
 
         Args:
             company_name: Name of the company
             domain: Optional company domain for more specific results
 
         Returns:
-            CompanyInfo with aggregated data from all sources
+            CompanyInfo with aggregated data
         """
         info = CompanyInfo(name=company_name, description="")
-
-        # Clean up company name for searching
         clean_name = company_name.strip()
 
-        # Search 1: LinkedIn company info - HIGHEST PRIORITY for B2B
-        self._search_linkedin(clean_name, domain, info)
+        # SINGLE optimized search query that captures everything important
+        # This query is designed to return LinkedIn, website, news, and other results
+        if domain:
+            query = f'"{clean_name}" OR site:{domain}'
+        else:
+            query = f'"{clean_name}" company'
 
-        # Search 2: Podcasts and video appearances
-        self._search_podcasts(clean_name, info)
+        try:
+            results = self.search(query, num_results=15)
+            self._process_search_results(results, info)
+        except requests.HTTPError as e:
+            logger.error(f"Serper API error for {company_name}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error searching for {company_name}: {e}")
 
-        # Search 3: Social media mentions
-        self._search_social_media(clean_name, info)
-
-        # Search 4: News and press releases
-        self._search_news(clean_name, info)
-
-        # Search 5: Company website and services
-        self._search_company_site(clean_name, domain, info)
-
-        # Search 6: Recent projects and case studies
-        self._search_projects(clean_name, domain, info)
-
-        # Build final description
+        # Build final description from all found data
         info.description = self._build_description(info)
 
         return info
 
-    def _search_linkedin(self, company_name: str, domain: Optional[str], info: CompanyInfo):
-        """Search LinkedIn for company info, posts, and employee insights."""
-        try:
-            # LinkedIn company page
-            query = f'site:linkedin.com/company "{company_name}"'
-            results = self.search(query, num_results=5)
+    def _process_search_results(self, results: Dict[str, Any], info: CompanyInfo):
+        """Process all results from a single search query."""
 
-            for item in results.get("organic", []):
-                snippet = item.get("snippet", "")
-                title = item.get("title", "")
+        # Extract knowledge graph if available (high-quality data)
+        kg = results.get("knowledgeGraph", {})
+        if kg:
+            info.knowledge_panel = kg
+            if kg.get("description"):
+                info.snippets.append(kg["description"])
 
-                if snippet:
-                    # Extract valuable LinkedIn info
-                    info.linkedin_info.append(snippet)
+            attrs = kg.get("attributes", {})
+            info.location = (
+                attrs.get("Headquarters") or
+                attrs.get("Address") or
+                attrs.get("Service area")
+            )
 
-                    # Look for employee count, industry, specialties
-                    self._extract_linkedin_details(snippet, info)
+            # Extract other valuable attributes
+            for key, value in attrs.items():
+                if key.lower() not in ["website", "phone", "address", "founded"]:
+                    info.snippets.append(f"{key}: {value}")
 
-            # Also search for recent LinkedIn posts/activity
-            post_query = f'site:linkedin.com "{company_name}" post OR article OR announcement'
-            post_results = self.search(post_query, num_results=3)
+        # Process organic results
+        for item in results.get("organic", []):
+            snippet = item.get("snippet", "")
+            title = item.get("title", "")
+            link = item.get("link", "").lower()
 
-            for item in post_results.get("organic", []):
-                snippet = item.get("snippet", "")
-                if snippet and snippet not in info.linkedin_info:
-                    info.linkedin_info.append(snippet)
+            if not snippet:
+                continue
 
-        except Exception:
-            pass
+            # Categorize result by source
+            if "linkedin.com" in link:
+                info.linkedin_info.append(snippet)
+                self._extract_linkedin_details(snippet, info)
+            elif "podcast" in link or "podcast" in title.lower() or "episode" in snippet.lower():
+                info.podcasts.append(f"{title}: {snippet[:100]}")
+            elif any(news in link for news in ["news", "press", "pr.", "businesswire", "prnewswire"]):
+                info.news_mentions.append(f"{title}: {snippet[:100]}")
+            else:
+                info.snippets.append(snippet)
 
-    def _search_podcasts(self, company_name: str, info: CompanyInfo):
-        """Search for podcast appearances and video content."""
-        try:
-            # Podcasts
-            query = f'"{company_name}" podcast OR interview OR episode OR "on the show"'
-            results = self.search(query, num_results=5)
-
-            for item in results.get("organic", []):
-                snippet = item.get("snippet", "")
-                title = item.get("title", "")
-                link = item.get("link", "")
-
-                # Check if it's actually a podcast/interview
-                is_podcast = any(kw in (title + snippet + link).lower() for kw in
-                               ["podcast", "episode", "interview", "show", "youtube", "spotify", "apple podcast"])
-
-                if is_podcast and snippet:
-                    info.podcasts.append(f"{title}: {snippet[:100]}")
-
-        except Exception:
-            pass
-
-    def _search_social_media(self, company_name: str, info: CompanyInfo):
-        """Search for social media presence and mentions."""
-        try:
-            # Twitter/X, Facebook, Instagram mentions
-            query = f'"{company_name}" (site:twitter.com OR site:x.com OR site:facebook.com OR site:instagram.com)'
-            results = self.search(query, num_results=5)
-
-            for item in results.get("organic", []):
-                snippet = item.get("snippet", "")
-                if snippet:
-                    info.social_mentions.append(snippet)
-
-        except Exception:
-            pass
-
-    def _search_news(self, company_name: str, info: CompanyInfo):
-        """Search for news mentions and press releases."""
-        try:
-            query = f'"{company_name}" news OR press release OR announcement OR featured'
-            results = self.search(query, num_results=5)
-
-            for item in results.get("organic", []):
-                snippet = item.get("snippet", "")
-                title = item.get("title", "")
-
-                if snippet:
-                    info.news_mentions.append(f"{title}: {snippet[:100]}")
-
-            # Extract knowledge graph if available
-            kg = results.get("knowledgeGraph", {})
-            if kg:
-                info.knowledge_panel = kg
-                attrs = kg.get("attributes", {})
-                info.location = attrs.get("Headquarters") or attrs.get("Address") or attrs.get("Service area")
-
-        except Exception:
-            pass
-
-    def _search_company_site(self, company_name: str, domain: Optional[str], info: CompanyInfo):
-        """Search the company website for services and tools."""
-        try:
-            if domain:
-                # Services and offerings
-                query = f'site:{domain} services OR offerings OR "we offer" OR "we specialize"'
-                results = self.search(query, num_results=5)
-
-                for item in results.get("organic", []):
-                    snippet = item.get("snippet", "")
-                    if snippet:
-                        info.services.append(snippet)
-                        self._extract_tools(snippet, info)
-
-                # About page for company description
-                about_query = f'site:{domain} about OR "about us" OR "who we are"'
-                about_results = self.search(about_query, num_results=3)
-
-                for item in about_results.get("organic", []):
-                    snippet = item.get("snippet", "")
-                    if snippet:
-                        info.snippets.append(snippet)
-
-        except Exception:
-            pass
-
-    def _search_projects(self, company_name: str, domain: Optional[str], info: CompanyInfo):
-        """Search for case studies, projects, and client work."""
-        try:
-            query = f'"{company_name}" case study OR project OR client OR portfolio OR "worked with"'
-            if domain:
-                query = f'site:{domain} case study OR project OR portfolio OR clients'
-
-            results = self.search(query, num_results=5)
-
-            for item in results.get("organic", []):
-                snippet = item.get("snippet", "")
-                if snippet:
-                    info.recent_projects.append(snippet)
-                    self._extract_clients(snippet, info)
-
-        except Exception:
-            pass
+            # Extract tools and clients from ALL results
+            self._extract_tools(snippet, info)
+            self._extract_clients(snippet, info)
 
     def _extract_linkedin_details(self, text: str, info: CompanyInfo):
         """Extract useful details from LinkedIn snippets."""
@@ -267,35 +186,26 @@ class SerperClient:
         if matches:
             info.snippets.append(f"Team size: {matches[0]} employees")
 
-        # Look for specialties
+        # Look for specialties/focus areas
         specialty_pattern = r'(?:specializ|focus|expert)\w*\s+(?:in\s+)?([^.]+)'
         matches = re.findall(specialty_pattern, text, re.IGNORECASE)
         for match in matches[:2]:
-            if len(match) > 5 and len(match) < 100:
+            if 5 < len(match) < 100:
                 info.services.append(match.strip())
 
     def _extract_tools(self, text: str, info: CompanyInfo):
         """Extract tools and platforms from text."""
-        known_tools = [
-            "ServiceTitan", "HubSpot", "Salesforce", "QuickBooks", "Jobber",
-            "Housecall Pro", "Zendesk", "Monday.com", "Asana", "Slack",
-            "Mailchimp", "ActiveCampaign", "Podium", "Birdeye", "Workiz",
-            "FieldEdge", "Simpro", "Zoho", "Freshworks", "Pipedrive",
-            "Shopify", "WooCommerce", "Squarespace", "WordPress", "Webflow",
-            "Stripe", "Square", "PayPal", "Calendly", "Acuity",
-        ]
-
         text_lower = text.lower()
-        for tool in known_tools:
+        for tool in KNOWN_TOOLS:
             if tool.lower() in text_lower and tool not in info.tools:
                 info.tools.append(tool)
 
         # Also look for patterns like "powered by X", "built with X"
         patterns = [
-            r'(?:powered by|built with|using|integrated with|runs on)\s+([A-Z][a-zA-Z0-9\s]+)',
+            r'(?:powered by|built with|using|integrated with|runs on)\s+([A-Z][a-zA-Z0-9]+)',
         ]
         for pattern in patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
+            matches = re.findall(pattern, text)
             for match in matches:
                 clean = match.strip()[:30]
                 if len(clean) > 2 and clean not in info.tools:
@@ -304,7 +214,7 @@ class SerperClient:
     def _extract_clients(self, text: str, info: CompanyInfo):
         """Extract client/project mentions from text."""
         patterns = [
-            r'(?:worked with|clients include|partnered with|serving|project for)\s+([A-Z][a-zA-Z0-9\s,&]+)',
+            r'(?:worked with|clients include|partnered with|serving|project for)\s+([A-Z][a-zA-Z0-9\s,&]+?)(?:\.|,|$)',
             r'(?:case study|portfolio):\s*([A-Z][a-zA-Z0-9\s]+)',
         ]
 
@@ -316,10 +226,10 @@ class SerperClient:
                     info.clients.append(clean)
 
     def _build_description(self, info: CompanyInfo) -> str:
-        """Build a comprehensive description from all gathered info."""
+        """Build comprehensive description from gathered info."""
         parts = []
 
-        # Knowledge panel description first
+        # Knowledge panel description first (highest quality)
         if info.knowledge_panel and info.knowledge_panel.get("description"):
             parts.append(info.knowledge_panel["description"])
 
@@ -329,19 +239,14 @@ class SerperClient:
                 parts.append(li)
 
         # General snippets
-        for snippet in info.snippets[:2]:
+        for snippet in info.snippets[:3]:
             if snippet not in parts:
                 parts.append(snippet)
 
         return " ".join(parts)
 
     def test_connection(self) -> bool:
-        """
-        Test if the API key is valid.
-
-        Returns:
-            True if connection successful
-        """
+        """Test if the API key is valid."""
         try:
             self.search("test", num_results=1)
             return True
@@ -351,66 +256,58 @@ class SerperClient:
 
 def extract_artifacts_from_serper(company_info: CompanyInfo) -> str:
     """
-    Convert Serper results into a rich description string for artifact extraction.
+    Convert Serper results into a rich description for AI line generation.
     Prioritizes the most personalization-worthy content.
 
     Args:
         company_info: CompanyInfo from Serper lookup
 
     Returns:
-        Combined description text optimized for artifact extraction
+        Combined description text optimized for personalization
     """
     parts = []
 
-    # HIGHEST PRIORITY: Podcast/interview appearances (creates great hooks)
+    # HIGHEST PRIORITY: Podcast/interview appearances (creates AMAZING hooks)
     for podcast in company_info.podcasts[:2]:
         parts.append(f'Featured on podcast: {podcast}')
 
-    # HIGH PRIORITY: Tools/platforms (Tier S - TOOL_PLATFORM)
+    # HIGH PRIORITY: Tools/platforms (Tier S - very specific)
     for tool in company_info.tools[:3]:
-        parts.append(f'Uses {tool}. Powered by {tool} platform.')
+        parts.append(f'Uses {tool}.')
 
-    # HIGH PRIORITY: Clients/projects (Tier S - CLIENT_OR_PROJECT)
+    # HIGH PRIORITY: Clients/projects (Tier S - very specific)
     for client in company_info.clients[:3]:
-        parts.append(f'Worked with {client}. Client project: {client}.')
+        parts.append(f'Worked with {client}.')
 
     # HIGH PRIORITY: Recent projects
     for project in company_info.recent_projects[:2]:
         parts.append(f'Recent work: {project}')
 
-    # MEDIUM PRIORITY: LinkedIn info (great for B2B personalization)
+    # MEDIUM PRIORITY: LinkedIn info
     for li in company_info.linkedin_info[:2]:
         parts.append(li)
 
-    # MEDIUM PRIORITY: News mentions (shows company is active/notable)
+    # MEDIUM PRIORITY: News mentions
     for news in company_info.news_mentions[:2]:
         parts.append(f'In the news: {news}')
-
-    # MEDIUM PRIORITY: Awards/certifications (Tier A - SERVICE_PROGRAM)
-    for award in company_info.awards[:2]:
-        parts.append(f'{award}.')
 
     # Knowledge graph info
     if company_info.knowledge_panel:
         kg = company_info.knowledge_panel
         if kg.get("description"):
             parts.append(kg["description"])
-        if kg.get("attributes"):
-            attrs = kg["attributes"]
-            for key, value in attrs.items():
-                if key.lower() not in ["website", "phone", "address", "founded"]:
-                    parts.append(f"{key}: {value}")
 
-    # Services (good for SERVICE_PROGRAM)
+    # Services
     for service in company_info.services[:2]:
         parts.append(service)
 
-    # Social mentions (shows online presence)
-    for social in company_info.social_mentions[:1]:
-        parts.append(social)
-
     # Location (Tier B fallback)
     if company_info.location:
-        parts.append(f"Located in {company_info.location}. Serving {company_info.location} area.")
+        parts.append(f"Located in {company_info.location}.")
+
+    # General snippets as fallback
+    for snippet in company_info.snippets[:2]:
+        if snippet not in parts:
+            parts.append(snippet)
 
     return " ".join(parts)

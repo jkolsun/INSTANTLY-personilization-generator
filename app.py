@@ -6,6 +6,7 @@ Run with: streamlit run app.py
 """
 import io
 import json
+import logging
 import os
 import time
 from datetime import datetime
@@ -911,6 +912,7 @@ def render_instantly_page():
                 if st.button("Process & Sync to Instantly", type="primary", width="stretch"):
                     # Initialize components
                     serper = SerperClient(st.session_state.serper_api_key)
+                    instantly_client = InstantlyClient(st.session_state.instantly_api_key)
                     use_ai = st.session_state.use_ai_generation and st.session_state.anthropic_connected
 
                     # AI generator or template-based fallback
@@ -960,13 +962,14 @@ def render_instantly_page():
                             domain = lead.company_domain or ""
                             status_text.markdown(f"**Processing:** {company_name} ({idx + 1}/{len(leads)})")
 
-                            # Use Serper to get rich company info (fast!)
+                            # Use Serper to get rich company info
                             serper_description = ""
                             try:
                                 company_info = serper.get_company_info(company_name, domain)
                                 serper_description = extract_artifacts_from_serper(company_info)
-                            except Exception:
-                                pass  # Graceful failure
+                            except Exception as e:
+                                # Log but continue - AI can still work with lead data
+                                logging.warning(f"Serper lookup failed for {company_name}: {e}")
 
                             # Build lead data dict for AI generator
                             lead_data = {
@@ -1063,8 +1066,7 @@ def render_instantly_page():
                             stats[tier] = stats.get(tier, 0) + 1
 
                             # Update lead in Instantly using upsert approach
-                            client = InstantlyClient(st.session_state.instantly_api_key)
-                            update_success, error_msg = client.update_lead_variables(
+                            update_success, error_msg = instantly_client.update_lead_variables(
                                 lead_id=lead.id,
                                 variables=variables,
                                 email=lead.email,
@@ -1086,9 +1088,11 @@ def render_instantly_page():
                             results_log.append({
                                 "email": lead.email,
                                 "company": lead.company_name,
-                                "line": f"Error: {e}",
+                                "line": f"Error: {str(e)[:80]}",
                                 "tier": "ERROR",
                                 "artifact": "",
+                                "synced": "FAILED",
+                                "error": str(e)[:100],
                             })
 
                         # Update progress
