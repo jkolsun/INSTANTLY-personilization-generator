@@ -943,7 +943,20 @@ def render_instantly_page():
 
                     if use_ai:
                         ai_generator = AILineGenerator(st.session_state.anthropic_api_key)
-                        st.success("Using Claude AI for line generation")
+
+                        # TEST Claude API before processing to avoid wasting Serper credits
+                        st.info("Testing Claude API connection...")
+                        test_result = ai_generator.generate_line(
+                            company_name="Test Company",
+                            serper_data="Test company provides software services.",
+                            lead_data={}
+                        )
+                        if test_result.artifact_type in ["API_ERROR", "UNEXPECTED_ERROR", "CONNECTION_ERROR"]:
+                            st.error(f"❌ Claude API TEST FAILED: {test_result.reasoning}")
+                            st.error("Fix your Anthropic API key before proceeding. Processing stopped to save Serper credits.")
+                            st.stop()
+                        else:
+                            st.success(f"✓ Claude API working! Test line: '{test_result.line[:50]}...'")
                     else:
                         st.error("NOT using Claude AI - falling back to templates (THIS IS THE PROBLEM)")
                         extractor = ArtifactExtractor()
