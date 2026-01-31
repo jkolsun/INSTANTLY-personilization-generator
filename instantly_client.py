@@ -30,7 +30,19 @@ class Lead:
 
     @classmethod
     def from_api_response(cls, data: Dict[str, Any]) -> "Lead":
-        """Create a Lead from API response data."""
+        """Create a Lead from API response data.
+
+        Note: Instantly API V2 stores custom variables in the 'payload' field,
+        not in a separate 'custom_variables' field. We check both for compatibility.
+        """
+        # Instantly API V2 stores custom variables in the 'payload' field
+        # Check payload first (V2), then fall back to custom_variables for compatibility
+        custom_vars = data.get("payload") or data.get("custom_variables") or {}
+
+        # If payload is a dict, use it directly; otherwise default to empty dict
+        if not isinstance(custom_vars, dict):
+            custom_vars = {}
+
         return cls(
             id=data.get("id", ""),
             email=data.get("email", ""),
@@ -39,7 +51,7 @@ class Lead:
             company_name=data.get("company_name"),
             company_domain=data.get("website") or data.get("company_domain"),
             campaign_id=data.get("campaign"),  # V2 uses "campaign" not "campaign_id"
-            custom_variables=data.get("custom_variables", {}),
+            custom_variables=custom_vars,
             raw_data=data,
         )
 

@@ -918,8 +918,24 @@ def render_instantly_page():
                             campaign_id=selected_campaign_id,
                             limit=10000,  # Always fetch all
                         )
+
+                        # DEBUG: Show what's in the first lead's data
+                        if leads:
+                            first_lead = leads[0]
+                            st.write("**DEBUG - First lead raw_data keys:**", list(first_lead.raw_data.keys()))
+                            st.write("**DEBUG - payload field:**", first_lead.raw_data.get("payload", "NO PAYLOAD"))
+                            st.write("**DEBUG - custom_variables (parsed):**", first_lead.custom_variables)
+                            st.write("**DEBUG - personalization_line:**",
+                                    first_lead.custom_variables.get("personalization_line", "NOT FOUND"))
+
+                            # Count leads with/without personalization to verify detection
+                            with_pers = sum(1 for l in leads if l.custom_variables.get("personalization_line") and str(l.custom_variables.get("personalization_line")).strip())
+                            without_pers = len(leads) - with_pers
+                            st.success(f"**Detection check:** {with_pers} leads WITH personalization, {without_pers} leads WITHOUT (new)")
+
                         st.session_state.instantly_leads = leads
                         st.session_state.instantly_sync_complete = False  # Reset for new fetch
+                        time.sleep(3)  # Let user see debug info
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error fetching leads: {e}")
