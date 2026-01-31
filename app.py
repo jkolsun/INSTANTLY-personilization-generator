@@ -84,6 +84,10 @@ def init_session_state():
         st.session_state.instantly_leads = []
     if "instantly_sync_stats" not in st.session_state:
         st.session_state.instantly_sync_stats = {}
+    if "instantly_results_log" not in st.session_state:
+        st.session_state.instantly_results_log = []
+    if "instantly_sync_complete" not in st.session_state:
+        st.session_state.instantly_sync_complete = False
     # Serper API key (hardcoded for now)
     if "serper_api_key" not in st.session_state:
         st.session_state.serper_api_key = "2e396f4a9a63bd80b9c15e4857addd053b3747ec"
@@ -878,21 +882,21 @@ def render_instantly_page():
 
                             # Update lead in Instantly using upsert approach
                             client = InstantlyClient(st.session_state.instantly_api_key)
-                            update_success = client.update_lead_variables(
+                            update_success, error_msg = client.update_lead_variables(
                                 lead_id=lead.id,
                                 variables=variables,
                                 email=lead.email,
                                 campaign_id=selected_campaign_id,
                             )
 
-                            sync_status = "Yes" if update_success else "FAILED"
                             results_log.append({
                                 "email": lead.email,
                                 "company": lead.company_name,
                                 "line": variables["personalization_line"],
                                 "tier": tier,
                                 "artifact": variables["artifact_text"],
-                                "synced": sync_status,
+                                "synced": "Yes" if update_success else "FAILED",
+                                "error": error_msg[:100] if error_msg else "",
                             })
 
                         except Exception as e:
@@ -926,10 +930,19 @@ def render_instantly_page():
                         | Errors | {stats['errors']} |
                         """)
 
+                    # Save results to session state so they persist
                     st.session_state.instantly_sync_stats = stats
+                    st.session_state.instantly_results_log = results_log
+                    st.session_state.instantly_sync_complete = True
 
                     status_text.markdown("**Processing complete!**")
-                    st.success("Personalization synced to Instantly!")
+
+                    # Count sync failures
+                    failed_syncs = sum(1 for r in results_log if r.get("synced") == "FAILED")
+                    if failed_syncs > 0:
+                        st.warning(f"Completed with {failed_syncs} sync failures. Check the 'synced' column below.")
+                    else:
+                        st.success("All personalizations synced to Instantly!")
 
                     # Show results
                     with results_container:
@@ -947,6 +960,40 @@ def render_instantly_page():
                         )
 
                     st.balloons()
+
+            # Show previous results if they exist (persist across navigation)
+            elif st.session_state.instantly_sync_complete and st.session_state.instantly_results_log:
+                st.markdown("---")
+                st.subheader("Previous Sync Results")
+
+                stats = st.session_state.instantly_sync_stats
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Tier S", stats.get("S", 0))
+                with col2:
+                    st.metric("Tier A", stats.get("A", 0))
+                with col3:
+                    st.metric("Tier B", stats.get("B", 0))
+                with col4:
+                    st.metric("Errors", stats.get("errors", 0))
+
+                results_df = pd.DataFrame(st.session_state.instantly_results_log)
+                st.dataframe(results_df, use_container_width=True, hide_index=True)
+
+                csv = results_df.to_csv(index=False)
+                st.download_button(
+                    "Download Results CSV",
+                    data=csv,
+                    file_name="instantly_sync_results.csv",
+                    mime="text/csv",
+                )
+
+                if st.button("Clear Results & Start New Sync"):
+                    st.session_state.instantly_results_log = []
+                    st.session_state.instantly_sync_complete = False
+                    st.session_state.instantly_sync_stats = {}
+                    st.rerun()
+
         else:
             st.warning("No campaigns found in your Instantly account.")
 

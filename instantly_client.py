@@ -260,7 +260,7 @@ class InstantlyClient:
         variables: Dict[str, Any],
         email: Optional[str] = None,
         campaign_id: Optional[str] = None,
-    ) -> bool:
+    ) -> tuple:
         """
         Update custom variables on a lead.
 
@@ -274,8 +274,10 @@ class InstantlyClient:
             campaign_id: Campaign ID for the lead
 
         Returns:
-            True if update was successful
+            Tuple of (success: bool, error_message: str or None)
         """
+        last_error = None
+
         # Primary approach: Re-add lead with custom variables (upsert)
         # This is the most reliable method for V2 API
         if email and campaign_id:
@@ -290,19 +292,25 @@ class InstantlyClient:
                     "skip_if_in_workspace": False,
                     "skip_if_in_campaign": False,
                 }
-                self._request("POST", "/leads", json_data=body)
-                return True
-            except requests.HTTPError:
-                pass
+                response = self._request("POST", "/leads", json_data=body)
+                # Check if the lead was actually added/updated
+                if response.get("uploaded", 0) > 0 or response.get("updated", 0) > 0:
+                    return (True, None)
+                # If not updated, try next method
+                last_error = f"Lead upsert response: {response}"
+            except requests.HTTPError as e:
+                last_error = f"Upsert failed: {e.response.status_code} - {e.response.text[:200] if e.response else str(e)}"
 
         # Fallback: Try the standard PATCH on lead ID
-        try:
-            self.update_lead(lead_id, custom_variables=variables)
-            return True
-        except requests.HTTPError:
-            pass
+        if lead_id:
+            try:
+                self.update_lead(lead_id, custom_variables=variables)
+                return (True, None)
+            except requests.HTTPError as e:
+                patch_error = f"PATCH failed: {e.response.status_code} - {e.response.text[:200] if e.response else str(e)}"
+                last_error = f"{last_error}; {patch_error}" if last_error else patch_error
 
-        return False
+        return (False, last_error)
 
     def update_lead_by_email(
         self,
