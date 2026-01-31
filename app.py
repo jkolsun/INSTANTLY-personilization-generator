@@ -158,6 +158,10 @@ def init_session_state():
         # Default to AI generation if Anthropic is connected
         st.session_state.use_ai_generation = st.session_state.anthropic_connected
 
+    # Processing state for cancel functionality
+    if "processing_cancelled" not in st.session_state:
+        st.session_state.processing_cancelled = False
+
     # Auto-load saved results on first run
     if "results_loaded" not in st.session_state:
         st.session_state.results_loaded = True
@@ -735,191 +739,294 @@ def render_instantly_page():
     """Render the Instantly sync page."""
     st.header("Instantly Sync")
 
-    st.markdown("""
-    Connect to your Instantly account to pull leads directly and push personalization lines back.
+    # ========== WORKFLOW STATUS BAR ==========
+    # Determine current workflow state
+    step1_done = st.session_state.instantly_connected
+    step2_done = st.session_state.anthropic_connected
+    step3_done = bool(st.session_state.instantly_leads)
+    step4_done = st.session_state.instantly_sync_complete
 
-    **How it works:**
-    1. Enter your Instantly API key
-    2. Select a campaign
-    3. Process leads (generates personalization lines)
-    4. Push results back to Instantly as custom variables
-    """)
+    # Show workflow progress
+    st.markdown("### Workflow Progress")
+    cols = st.columns(4)
+    with cols[0]:
+        if step1_done:
+            st.success("1. Instantly Connected")
+        else:
+            st.warning("1. Connect Instantly")
+    with cols[1]:
+        if step2_done:
+            st.success("2. Claude AI Ready")
+        else:
+            st.info("2. Connect Claude (optional)")
+    with cols[2]:
+        if step3_done:
+            leads = st.session_state.instantly_leads
+            leads_with = sum(1 for l in leads if l.custom_variables.get("personalization_line") and str(l.custom_variables.get("personalization_line")).strip())
+            leads_without = len(leads) - leads_with
+            st.success(f"3. {len(leads)} Leads Fetched")
+            st.caption(f"{leads_without} new, {leads_with} existing")
+        else:
+            st.warning("3. Fetch Leads")
+    with cols[3]:
+        if step4_done:
+            stats = st.session_state.instantly_sync_stats
+            processed = stats.get("S", 0) + stats.get("A", 0) + stats.get("B", 0)
+            st.success(f"4. {processed} Processed")
+        else:
+            st.info("4. Process & Sync")
 
     st.markdown("---")
 
-    # API Key input
-    col1, col2 = st.columns([3, 1])
-
-    with col1:
-        api_key = st.text_input(
-            "Instantly API Key",
-            value=st.session_state.instantly_api_key,
-            type="password",
-            help="Your Instantly API V2 key. Find it in Instantly Settings > Integrations > API",
-        )
-
-    with col2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Connect", type="primary", width="stretch"):
-            if api_key:
-                with st.spinner("Testing connection..."):
-                    try:
-                        client = InstantlyClient(api_key)
-                        if client.test_connection():
-                            st.session_state.instantly_api_key = api_key
-                            st.session_state.instantly_connected = True
-                            # Fetch campaigns
-                            campaigns = client.list_campaigns()
-                            st.session_state.instantly_campaigns = campaigns
-                            st.success(f"Connected! Found {len(campaigns)} campaigns.")
-                            st.rerun()
-                        else:
-                            st.error("Connection failed. Check your API key.")
-                    except Exception as e:
-                        st.error(f"Connection error: {e}")
-            else:
-                st.warning("Please enter your API key.")
-
-    # Show connection status
-    if st.session_state.instantly_connected:
-        st.success("Connected to Instantly")
+    # ========== SETUP SECTION (Collapsible when done) ==========
+    setup_expanded = not (step1_done and step2_done)
+    with st.expander("API Configuration", expanded=setup_expanded):
+        # Instantly API
+        st.markdown("#### Instantly API")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            api_key = st.text_input(
+                "API Key",
+                value=st.session_state.instantly_api_key,
+                type="password",
+                help="Your Instantly API V2 key",
+                key="instantly_api_input",
+            )
+        with col2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if step1_done:
+                st.button("Connected", disabled=True, key="instantly_connected_btn")
+            elif st.button("Connect", type="primary", key="instantly_connect_btn"):
+                if api_key:
+                    with st.spinner("Testing connection..."):
+                        try:
+                            client = InstantlyClient(api_key)
+                            if client.test_connection():
+                                st.session_state.instantly_api_key = api_key
+                                st.session_state.instantly_connected = True
+                                campaigns = client.list_campaigns()
+                                st.session_state.instantly_campaigns = campaigns
+                                st.rerun()
+                            else:
+                                st.error("Connection failed.")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                else:
+                    st.warning("Enter API key first.")
 
         st.markdown("---")
 
-        # Anthropic API Key section
-        st.subheader("AI Line Generation (Claude)")
-        st.markdown("""
-        Use Claude AI to generate intelligent, context-aware personalization lines instead of templates.
-        This produces much higher quality, natural-sounding lines.
-        """)
-
+        # Claude API
+        st.markdown("#### Claude AI (Recommended)")
+        st.caption("Generates intelligent, context-aware personalization lines")
         col1, col2 = st.columns([3, 1])
-
         with col1:
             anthropic_key = st.text_input(
                 "Anthropic API Key",
                 value=st.session_state.anthropic_api_key,
                 type="password",
-                help="Your Anthropic API key from console.anthropic.com",
+                help="From console.anthropic.com",
+                key="anthropic_api_input",
             )
-
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Connect", key="anthropic_connect", width="stretch"):
+            if step2_done:
+                st.button("Connected", disabled=True, key="anthropic_connected_btn")
+            elif st.button("Connect", type="primary", key="anthropic_connect_btn"):
                 if anthropic_key:
-                    with st.spinner("Testing connection..."):
+                    with st.spinner("Testing..."):
                         if test_anthropic_key(anthropic_key):
                             st.session_state.anthropic_api_key = anthropic_key
                             st.session_state.anthropic_connected = True
-                            st.session_state.use_ai_generation = True  # Enable AI when connected!
-                            st.success("Claude API connected!")
+                            st.session_state.use_ai_generation = True
                             st.rerun()
                         else:
-                            st.error("Invalid API key. Check console.anthropic.com")
+                            st.error("Invalid key.")
                 else:
-                    st.warning("Please enter your Anthropic API key.")
+                    st.warning("Enter API key first.")
 
-        if st.session_state.anthropic_connected:
-            st.success("Claude AI Ready")
+        if step2_done:
             st.session_state.use_ai_generation = st.checkbox(
                 "Use AI-generated lines (recommended)",
                 value=st.session_state.use_ai_generation,
-                key="use_ai_checkbox",  # Explicit key for state persistence
-                help="When enabled, Claude writes personalization lines. When disabled, uses templates.",
+                key="use_ai_checkbox",
             )
-        else:
-            st.warning("Add your Anthropic API key to enable AI-generated lines. Without it, template-based lines will be used.")
-            # Don't reset use_ai_generation here - it prevents re-enabling after connect
 
-        st.markdown("---")
-        st.subheader("Select Campaign")
-
+    # ========== MAIN CAMPAIGN SECTION ==========
+    if st.session_state.instantly_connected:
         campaigns = st.session_state.instantly_campaigns
         if campaigns:
-            campaign_options = {f"{c.name} ({c.status})": c.id for c in campaigns}
-            selected_campaign_name = st.selectbox(
-                "Campaign",
-                options=list(campaign_options.keys()),
-                help="Select a campaign to process",
-            )
-            selected_campaign_id = campaign_options[selected_campaign_name]
+            # Campaign selection in a prominent box
+            st.markdown("### Select Campaign")
+            col1, col2 = st.columns([2, 1])
 
-            limit = st.number_input(
-                "Limit leads (0 = all)",
-                min_value=0,
-                value=100,
-                help="Maximum number of leads to process",
-            )
+            with col1:
+                campaign_options = {f"{c.name} ({c.status})": c.id for c in campaigns}
+                selected_campaign_name = st.selectbox(
+                    "Campaign",
+                    options=list(campaign_options.keys()),
+                    label_visibility="collapsed",
+                )
+                selected_campaign_id = campaign_options[selected_campaign_name]
 
-            skip_existing = st.checkbox(
-                "Skip leads with existing personalization",
-                value=True,
-                help="Skip leads that already have a personalization_line set",
-            )
-
-            preview_only = st.checkbox(
-                "Preview only (don't push to Instantly)",
-                value=False,
-                help="Generate lines but don't update Instantly - for testing",
-            )
-
-            st.info("Using Serper API for fast, high-quality company research (~1 sec per lead)")
+            with col2:
+                if st.button("Refresh Campaigns", key="refresh_campaigns"):
+                    with st.spinner("Refreshing..."):
+                        client = InstantlyClient(st.session_state.instantly_api_key)
+                        st.session_state.instantly_campaigns = client.list_campaigns()
+                        st.rerun()
 
             st.markdown("---")
 
-            # Fetch leads button
-            if st.button("Fetch Leads", width="stretch"):
+            # ========== CAMPAIGN DASHBOARD ==========
+            st.markdown("### Campaign Dashboard")
+
+            # Quick action buttons row
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                fetch_btn = st.button(
+                    "Fetch Leads from Instantly",
+                    type="primary" if not step3_done else "secondary",
+                    key="fetch_leads_btn",
+                    use_container_width=True,
+                )
+
+            with col2:
+                # Processing options
+                skip_existing = st.checkbox(
+                    "Skip existing personalizations",
+                    value=True,
+                    key="skip_existing_check",
+                    help="Only process leads that don't have personalization yet",
+                )
+
+            with col3:
+                preview_only = st.checkbox(
+                    "Preview mode (don't push)",
+                    value=False,
+                    key="preview_only_check",
+                    help="Generate lines but don't update Instantly",
+                )
+
+            # Handle fetch button
+            if fetch_btn:
                 with st.spinner("Fetching leads from Instantly..."):
                     try:
                         client = InstantlyClient(st.session_state.instantly_api_key)
                         leads = client.list_leads(
                             campaign_id=selected_campaign_id,
-                            limit=limit if limit > 0 else 10000,
+                            limit=10000,  # Always fetch all
                         )
                         st.session_state.instantly_leads = leads
-                        st.success(f"Fetched {len(leads)} leads")
+                        st.session_state.instantly_sync_complete = False  # Reset for new fetch
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error fetching leads: {e}")
 
-            # Show fetched leads
+            # ========== LEADS OVERVIEW ==========
             if st.session_state.instantly_leads:
                 leads = st.session_state.instantly_leads
 
-                # Count leads with existing personalization
-                leads_with_personalization = sum(
-                    1 for lead in leads
-                    if lead.custom_variables.get("personalization_line")
-                    and str(lead.custom_variables.get("personalization_line")).strip()
-                )
+                # Separate leads into new vs existing
+                new_leads = [lead for lead in leads
+                            if not (lead.custom_variables.get("personalization_line")
+                                   and str(lead.custom_variables.get("personalization_line")).strip())]
+                existing_leads = [lead for lead in leads
+                                 if lead.custom_variables.get("personalization_line")
+                                 and str(lead.custom_variables.get("personalization_line")).strip()]
 
-                st.markdown(f"### Leads Preview ({len(leads)} total)")
+                leads_without_personalization = len(new_leads)
+                leads_with_personalization = len(existing_leads)
 
-                # Show warning if many leads have personalization
-                if leads_with_personalization > 0:
-                    st.warning(f"**{leads_with_personalization} of {len(leads)} leads already have personalization.** "
-                              f"{'These will be skipped.' if skip_existing else 'These will be overwritten.'}")
+                # Determine what to show based on skip_existing
+                if skip_existing:
+                    # ONLY show new leads - this is what will be processed
+                    display_leads = new_leads
+                    st.markdown("---")
 
-                # Create preview dataframe
-                preview_data = []
-                for lead in leads[:20]:  # Show first 20
-                    personalization_value = lead.custom_variables.get("personalization_line", "")
-                    has_personalization = bool(personalization_value and str(personalization_value).strip())
-                    preview_data.append({
-                        "Email": lead.email,
-                        "Company": lead.company_name or "-",
-                        "Has Personalization": "Yes" if has_personalization else "No",
-                        "Existing Line": str(personalization_value)[:50] + "..." if personalization_value and len(str(personalization_value)) > 50 else (personalization_value or "-"),
-                    })
+                    if leads_without_personalization > 0:
+                        st.success(f"### {leads_without_personalization} New Leads Ready to Process")
+                        st.caption(f"({leads_with_personalization} existing leads will be skipped)")
+                    else:
+                        st.info("### No New Leads to Process")
+                        st.markdown(f"All {leads_with_personalization} leads already have personalization. Add more leads to your campaign in Instantly and click 'Fetch Leads' again.")
+                else:
+                    # Show all leads when overwriting
+                    display_leads = leads
+                    st.markdown("---")
+                    st.warning(f"### {len(leads)} Leads (Will Overwrite All)")
+                    st.caption("Uncheck 'Skip existing' is OFF - all existing personalizations will be replaced")
 
-                st.dataframe(pd.DataFrame(preview_data), width="stretch", hide_index=True)
+                # Preview table showing ONLY what will be processed
+                if display_leads:
+                    with st.expander(f"Preview {len(display_leads)} Leads to Process", expanded=True):
+                        preview_data = []
+                        for lead in display_leads[:30]:  # Show first 30 of what will be processed
+                            preview_data.append({
+                                "Email": lead.email,
+                                "Company": lead.company_name or "-",
+                            })
 
-                if len(leads) > 20:
-                    st.caption(f"Showing 20 of {len(leads)} leads")
+                        preview_df = pd.DataFrame(preview_data)
+                        st.dataframe(preview_df, use_container_width=True, hide_index=True)
+                        if len(display_leads) > 30:
+                            st.caption(f"Showing 30 of {len(display_leads)} leads that will be processed")
 
                 st.markdown("---")
 
-                # Process button
-                if st.button("Process & Sync to Instantly", type="primary", width="stretch"):
+                # ========== PROCESS SECTION WITH CONFIRMATION ==========
+                process_count = leads_without_personalization if skip_existing else len(leads)
+
+                if process_count > 0:
+                    # Limit input
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.markdown(f"**Ready to process {process_count} leads**")
+                    with col2:
+                        limit = st.number_input(
+                            "Limit (0 = all)",
+                            min_value=0,
+                            max_value=process_count,
+                            value=0,
+                            help="Process only first N leads",
+                            key="limit_input",
+                        )
+
+                    actual_count = limit if limit > 0 else process_count
+
+                    # Confirmation checkbox before processing
+                    st.markdown("---")
+                    confirm = st.checkbox(
+                        f"I confirm I want to process {actual_count} leads and use API credits",
+                        key="confirm_process",
+                        help="Check this box to enable the process button"
+                    )
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        process_btn = st.button(
+                            f"Process {actual_count} Leads & Sync to Instantly",
+                            type="primary",
+                            key="process_sync_btn",
+                            use_container_width=True,
+                            disabled=not confirm,  # Disabled until confirmed
+                        )
+                    with col2:
+                        if st.button("Clear & Start Over", key="clear_leads_btn", use_container_width=True):
+                            st.session_state.instantly_leads = []
+                            st.session_state.instantly_sync_complete = False
+                            st.rerun()
+
+                    if not confirm:
+                        st.caption("Check the confirmation box above to enable processing")
+                else:
+                    process_btn = False
+                    limit = 0
+                    actual_count = 0
+
+                # Process when button is clicked
+                if process_btn:
                     # Initialize components
                     serper = SerperClient(st.session_state.serper_api_key)
                     instantly_client = InstantlyClient(st.session_state.instantly_api_key)
@@ -967,6 +1074,9 @@ def render_instantly_page():
                     if preview_only:
                         st.warning("PREVIEW MODE: Lines will NOT be pushed to Instantly")
 
+                    # Cancel instructions
+                    cancel_info = st.info("**To cancel:** Refresh the page. Partial results are saved every 10 leads.")
+
                     progress_bar = st.progress(0)
                     status_text = st.empty()
                     stats_display = st.empty()
@@ -975,7 +1085,17 @@ def render_instantly_page():
                     stats = {"S": 0, "A": 0, "B": 0, "errors": 0, "skipped": 0, "serper_success": 0, "serper_fail": 0, "claude_success": 0, "claude_fail": 0}
                     results_log = []
 
+                    # Use actual_count (respects limit) instead of process_count
+                    target_count = actual_count
+                    total_leads = len(leads)  # Total to scan through
+                    processed_count = 0  # Track non-skipped leads processed
+
                     for idx, lead in enumerate(leads):
+                        # Check if we've hit the target (limit or all new leads)
+                        if processed_count >= target_count:
+                            status_text.markdown(f"**Complete:** Processed {processed_count} leads")
+                            break
+
                         try:
                             # Skip if already has personalization and skip_existing is True
                             existing_line = lead.custom_variables.get("personalization_line", "")
@@ -983,24 +1103,18 @@ def render_instantly_page():
 
                             if skip_existing and has_existing:
                                 stats["skipped"] += 1
-                                results_log.append({
-                                    "email": lead.email,
-                                    "company": lead.company_name,
-                                    "line": f"[SKIPPED] {str(existing_line)[:50]}...",
-                                    "tier": "SKIPPED",
-                                    "artifact": "",
-                                    "synced": "Skipped",
-                                    "error": "",
-                                })
+                                # Don't add skipped to results_log to keep it clean for large datasets
                                 # Update progress even for skipped leads
-                                progress = (idx + 1) / len(leads)
+                                progress = (idx + 1) / total_leads
                                 progress_bar.progress(progress)
-                                status_text.markdown(f"**Skipping:** {lead.company_name or lead.email} (already has personalization)")
+                                # Only show skip status every 10 leads to reduce UI updates for large datasets
+                                if idx % 10 == 0:
+                                    status_text.markdown(f"**Scanning:** {idx + 1}/{total_leads} (skipping existing...)")
                                 continue
 
                             company_name = lead.company_name or "Unknown"
                             domain = lead.company_domain or ""
-                            status_text.markdown(f"**Processing:** {company_name} ({idx + 1}/{len(leads)})")
+                            status_text.markdown(f"**Processing:** {company_name} ({processed_count + 1} of {process_count} to process)")
 
                             # Use Serper to get rich company info
                             serper_description = ""
@@ -1146,9 +1260,11 @@ def render_instantly_page():
                                 "type": variables.get("artifact_type", ""),
                                 "artifact": variables["artifact_text"][:50] if variables["artifact_text"] else "",
                                 "source": "Serper" if has_serper_data else "Lead data",
-                                "ai_status": "OK" if ai_reason and "FAILED" not in ai_reason and "ERROR" not in ai_reason else ("FAILED: " + ai_reason[:40] if ai_reason else "N/A"),
                                 "synced": sync_status,
                             })
+
+                            # Increment processed count
+                            processed_count += 1
 
                         except Exception as e:
                             stats["errors"] += 1
@@ -1161,31 +1277,34 @@ def render_instantly_page():
                                 "synced": "FAILED",
                                 "error": str(e)[:100],
                             })
+                            processed_count += 1  # Count errors too
 
-                        # Update progress
-                        progress = (idx + 1) / len(leads)
+                        # Update progress (based on processed count vs target)
+                        progress = min(1.0, processed_count / target_count) if target_count > 0 else 1.0
                         progress_bar.progress(progress)
 
-                        # Update stats display
-                        total_processed = stats["S"] + stats["A"] + stats["B"]
+                        # Update stats display (compact for large datasets)
+                        actual_processed = stats["S"] + stats["A"] + stats["B"]
                         high_conf = stats["S"] + stats["A"]
-                        high_conf_pct = high_conf / total_processed * 100 if total_processed > 0 else 0
+                        high_conf_pct = high_conf / actual_processed * 100 if actual_processed > 0 else 0
 
                         stats_display.markdown(f"""
-                        | Metric | Value |
-                        |--------|-------|
-                        | Processed | {idx + 1}/{len(leads)} |
-                        | Tier S | {stats['S']} |
-                        | Tier A | {stats['A']} |
-                        | Tier B | {stats['B']} |
-                        | Skipped | {stats['skipped']} |
-                        | High Confidence | {high_conf_pct:.1f}% |
-                        | Serper Success | {stats['serper_success']} |
-                        | Serper No Data | {stats['serper_fail']} |
-                        | **Claude Success** | **{stats['claude_success']}** |
-                        | **Claude FAILED** | **{stats['claude_fail']}** |
-                        | Errors | {stats['errors']} |
-                        """)
+                        **Progress:** {processed_count}/{target_count} processed | {stats['skipped']} skipped | {stats['errors']} errors
+
+                        | Tier | Count | % |
+                        |------|-------|---|
+                        | S (Best) | {stats['S']} | {stats['S']/actual_processed*100:.0f}% |
+                        | A (Good) | {stats['A']} | {stats['A']/actual_processed*100:.0f}% |
+                        | B (Basic) | {stats['B']} | {stats['B']/actual_processed*100:.0f}% |
+
+                        **High Confidence (S+A): {high_conf_pct:.0f}%** | Serper: {stats['serper_success']}/{stats['serper_success']+stats['serper_fail']} | Claude: {stats['claude_success']}/{stats['claude_success']+stats['claude_fail']}
+                        """ if actual_processed > 0 else f"**Starting...** Scanning for new leads...")
+
+                        # Save partial results every 10 leads (for cancel safety)
+                        if processed_count > 0 and processed_count % 10 == 0:
+                            st.session_state.instantly_sync_stats = stats.copy()
+                            st.session_state.instantly_results_log = results_log.copy()
+                            save_results(results_log, stats, selected_campaign_name)
 
                     # Save results to session state so they persist
                     st.session_state.instantly_sync_stats = stats
@@ -1205,38 +1324,59 @@ def render_instantly_page():
                     else:
                         st.success("All personalizations synced to Instantly!")
 
-                    # Show results
+                    # Show results summary
                     with results_container:
-                        st.markdown("### Results")
-                        results_df = pd.DataFrame(results_log)
-                        st.dataframe(results_df, width="stretch", hide_index=True)
+                        st.markdown("### Processing Complete!")
 
-                        # Download results
+                        # Summary stats
+                        total_done = stats["S"] + stats["A"] + stats["B"]
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Processed", total_done)
+                        with col2:
+                            high_conf = stats["S"] + stats["A"]
+                            st.metric("High Quality (S+A)", high_conf, delta=f"{high_conf/total_done*100:.0f}%" if total_done else None)
+                        with col3:
+                            st.metric("Skipped", stats["skipped"])
+                        with col4:
+                            synced = sum(1 for r in results_log if r.get("synced") == "Yes")
+                            st.metric("Synced to Instantly", synced)
+
+                        # Quick preview of results (first 20)
+                        results_df = pd.DataFrame(results_log)
+                        with st.expander(f"Preview Results ({len(results_log)} total)", expanded=True):
+                            st.dataframe(results_df.head(50), use_container_width=True, hide_index=True)
+                            if len(results_log) > 50:
+                                st.caption("Showing first 50 results. See 'Previous Results' section below for full list with search/filter.")
+
+                        # Download button
                         csv = results_df.to_csv(index=False)
                         st.download_button(
-                            "Download Results CSV",
+                            "Download All Results CSV",
                             data=csv,
                             file_name="instantly_sync_results.csv",
                             mime="text/csv",
+                            use_container_width=True,
                         )
 
                     st.balloons()
 
             # Show previous results if they exist (persist across navigation AND page refresh)
-            elif st.session_state.instantly_sync_complete and st.session_state.instantly_results_log:
+            # IMPORTANT: Changed from elif to if - so users can always fetch new leads even with saved results
+            if st.session_state.instantly_sync_complete and st.session_state.instantly_results_log:
                 st.markdown("---")
 
                 # Show campaign name if available
                 campaign_label = st.session_state.get("saved_campaign_name", "")
                 if campaign_label:
-                    st.subheader(f"Saved Results: {campaign_label}")
+                    st.subheader(f"Previous Results: {campaign_label}")
                 else:
-                    st.subheader("Saved Results")
+                    st.subheader("Previous Results")
 
-                st.info(f"Results are auto-saved and will persist across page refreshes. {len(st.session_state.instantly_results_log)} leads loaded.")
+                st.info(f"These are saved results from a previous run. To process NEW leads added to the campaign, click 'Fetch Leads' above first, then 'Process & Sync'.")
 
                 stats = st.session_state.instantly_sync_stats
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3, col4, col5 = st.columns(5)
                 with col1:
                     st.metric("Tier S", stats.get("S", 0))
                 with col2:
@@ -1244,12 +1384,85 @@ def render_instantly_page():
                 with col3:
                     st.metric("Tier B", stats.get("B", 0))
                 with col4:
+                    st.metric("Skipped", stats.get("skipped", 0))
+                with col5:
                     st.metric("Errors", stats.get("errors", 0))
 
                 results_df = pd.DataFrame(st.session_state.instantly_results_log)
-                st.dataframe(results_df, width="stretch", hide_index=True)
 
-                col1, col2 = st.columns(2)
+                # Filter and search row
+                col1, col2, col3 = st.columns([1, 1, 2])
+                with col1:
+                    show_filter = st.selectbox(
+                        "Filter",
+                        ["Processed only", "All", "Errors only"],
+                        key="results_filter",
+                        label_visibility="collapsed",
+                    )
+                with col2:
+                    tier_filter = st.selectbox(
+                        "Tier",
+                        ["All Tiers", "S only", "A only", "B only"],
+                        key="tier_filter",
+                        label_visibility="collapsed",
+                    )
+                with col3:
+                    search_term = st.text_input(
+                        "Search",
+                        placeholder="Search by company or email...",
+                        key="results_search",
+                        label_visibility="collapsed",
+                    )
+
+                # Apply filters
+                filtered_df = results_df.copy()
+                if show_filter == "Processed only":
+                    filtered_df = filtered_df[~filtered_df["tier"].isin(["SKIPPED", "ERROR"])]
+                elif show_filter == "Errors only":
+                    filtered_df = filtered_df[filtered_df["tier"] == "ERROR"]
+
+                if tier_filter != "All Tiers":
+                    tier_val = tier_filter.split()[0]  # "S only" -> "S"
+                    filtered_df = filtered_df[filtered_df["tier"] == tier_val]
+
+                if search_term:
+                    search_lower = search_term.lower()
+                    filtered_df = filtered_df[
+                        filtered_df["email"].str.lower().str.contains(search_lower, na=False) |
+                        filtered_df["company"].str.lower().str.contains(search_lower, na=False)
+                    ]
+
+                # Pagination for large datasets
+                ROWS_PER_PAGE = 100
+                total_rows = len(filtered_df)
+                total_pages = max(1, (total_rows + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE)
+
+                if total_rows > ROWS_PER_PAGE:
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        page = st.number_input(
+                            f"Page (1-{total_pages})",
+                            min_value=1,
+                            max_value=total_pages,
+                            value=1,
+                            key="results_page",
+                        )
+                    start_idx = (page - 1) * ROWS_PER_PAGE
+                    end_idx = min(start_idx + ROWS_PER_PAGE, total_rows)
+                    display_df = filtered_df.iloc[start_idx:end_idx]
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                    st.caption(f"Showing {start_idx + 1}-{end_idx} of {total_rows} results (Page {page}/{total_pages})")
+                else:
+                    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+                    st.caption(f"Showing {total_rows} results")
+
+                # Check if any results weren't synced (preview mode or failures)
+                unsynced_results = [r for r in st.session_state.instantly_results_log
+                                   if r.get("synced") in ["Preview", "FAILED"] and r.get("tier") not in ["SKIPPED", "ERROR"]]
+
+                st.markdown("---")
+                col1, col2, col3 = st.columns(3)
+
                 with col1:
                     csv = results_df.to_csv(index=False)
                     st.download_button(
@@ -1261,11 +1474,77 @@ def render_instantly_page():
                     )
 
                 with col2:
-                    if st.button("Clear Saved Results & Start New", width="stretch"):
+                    # Push to Instantly button - for preview results or retrying failed syncs
+                    if unsynced_results:
+                        if st.button(f"Push {len(unsynced_results)} to Instantly", type="primary", width="stretch"):
+                            with st.spinner(f"Pushing {len(unsynced_results)} leads to Instantly..."):
+                                try:
+                                    instantly_client = InstantlyClient(st.session_state.instantly_api_key)
+
+                                    # Need to get campaign ID - use the currently selected one
+                                    push_campaign_id = campaign_options.get(selected_campaign_name) if 'campaign_options' in dir() else None
+
+                                    if not push_campaign_id:
+                                        # Try to find the campaign by name
+                                        for c in st.session_state.instantly_campaigns:
+                                            if c.name in campaign_label:
+                                                push_campaign_id = c.id
+                                                break
+
+                                    if not push_campaign_id:
+                                        st.error("Could not determine campaign ID. Please select a campaign above and fetch leads first.")
+                                    else:
+                                        success_count = 0
+                                        fail_count = 0
+                                        push_progress = st.progress(0)
+
+                                        for idx, result in enumerate(st.session_state.instantly_results_log):
+                                            if result.get("synced") in ["Preview", "FAILED"] and result.get("tier") not in ["SKIPPED", "ERROR"]:
+                                                variables = {
+                                                    "personalization_line": result.get("line", ""),
+                                                    "artifact_type": result.get("type", ""),
+                                                    "artifact_text": result.get("artifact", ""),
+                                                    "confidence_tier": result.get("tier", ""),
+                                                }
+
+                                                update_success, _ = instantly_client.update_lead_variables(
+                                                    lead_id=None,  # Will use email lookup
+                                                    variables=variables,
+                                                    email=result.get("email"),
+                                                    campaign_id=push_campaign_id,
+                                                )
+
+                                                if update_success:
+                                                    result["synced"] = "Yes"
+                                                    success_count += 1
+                                                else:
+                                                    result["synced"] = "FAILED"
+                                                    fail_count += 1
+
+                                            push_progress.progress((idx + 1) / len(st.session_state.instantly_results_log))
+
+                                        # Update saved file
+                                        save_results(st.session_state.instantly_results_log, stats, campaign_label)
+
+                                        if fail_count == 0:
+                                            st.success(f"Successfully pushed {success_count} leads to Instantly!")
+                                        else:
+                                            st.warning(f"Pushed {success_count} leads, {fail_count} failed.")
+
+                                        st.rerun()
+
+                                except Exception as e:
+                                    st.error(f"Error pushing to Instantly: {e}")
+                    else:
+                        st.button("All synced to Instantly", disabled=True, width="stretch")
+
+                with col3:
+                    if st.button("Clear Results & Start Fresh", width="stretch"):
                         st.session_state.instantly_results_log = []
                         st.session_state.instantly_sync_complete = False
                         st.session_state.instantly_sync_stats = {}
                         st.session_state.saved_campaign_name = ""
+                        st.session_state.instantly_leads = []  # Also clear fetched leads
                         delete_saved_results()  # Delete the file too
                         st.rerun()
 
