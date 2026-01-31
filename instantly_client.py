@@ -254,6 +254,49 @@ class InstantlyClient:
         response = self._request("PATCH", f"/leads/{lead_id}", json_data=body)
         return Lead.from_api_response(response)
 
+    def update_lead_direct(
+        self,
+        email: str,
+        custom_variables: Dict[str, Any],
+        campaign_id: str,
+    ) -> tuple:
+        """
+        Update lead using the direct update endpoint.
+
+        Args:
+            email: Lead email
+            custom_variables: Variables to update
+            campaign_id: Campaign ID
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        try:
+            # Try direct PATCH with email lookup first
+            body = {
+                "email": email,
+                "campaign_id": campaign_id,
+                "custom_variables": custom_variables,
+            }
+            response = self._request("PATCH", "/leads", json_data=body)
+            return (True, None)
+        except requests.HTTPError as e:
+            error1 = f"PATCH /leads: {e.response.status_code}" if e.response else str(e)
+
+        # Try POST to update endpoint
+        try:
+            body = {
+                "email": email,
+                "campaign_id": campaign_id,
+                "custom_variables": custom_variables,
+            }
+            response = self._request("POST", "/leads/update", json_data=body)
+            return (True, None)
+        except requests.HTTPError as e:
+            error2 = f"POST /leads/update: {e.response.status_code}" if e.response else str(e)
+
+        return (False, f"{error1}; {error2}")
+
     def update_lead_variables(
         self,
         lead_id: str,
@@ -278,8 +321,17 @@ class InstantlyClient:
         """
         last_error = None
 
-        # Primary approach: Re-add lead with custom variables (upsert)
-        # This is the most reliable method for V2 API
+        # Approach 1: PATCH on lead ID (if we have it)
+        if lead_id:
+            try:
+                self.update_lead(lead_id, custom_variables=variables)
+                return (True, None)
+            except requests.HTTPError as e:
+                last_error = f"PATCH {lead_id}: {e.response.status_code}" if e.response else str(e)
+            except Exception as e:
+                last_error = f"PATCH error: {str(e)}"
+
+        # Approach 2: Re-add lead with custom variables (upsert)
         if email and campaign_id:
             try:
                 lead_data = {
@@ -292,23 +344,25 @@ class InstantlyClient:
                     "skip_if_in_workspace": False,
                     "skip_if_in_campaign": False,
                 }
-                response = self._request("POST", "/leads", json_data=body)
-                # Check if the lead was actually added/updated
-                if response.get("uploaded", 0) > 0 or response.get("updated", 0) > 0:
-                    return (True, None)
-                # If not updated, try next method
-                last_error = f"Lead upsert response: {response}"
-            except requests.HTTPError as e:
-                last_error = f"Upsert failed: {e.response.status_code} - {e.response.text[:200] if e.response else str(e)}"
-
-        # Fallback: Try the standard PATCH on lead ID
-        if lead_id:
-            try:
-                self.update_lead(lead_id, custom_variables=variables)
+                self._request("POST", "/leads", json_data=body)
                 return (True, None)
             except requests.HTTPError as e:
-                patch_error = f"PATCH failed: {e.response.status_code} - {e.response.text[:200] if e.response else str(e)}"
-                last_error = f"{last_error}; {patch_error}" if last_error else patch_error
+                upsert_error = f"POST /leads: {e.response.status_code}" if e.response else str(e)
+                last_error = f"{last_error}; {upsert_error}" if last_error else upsert_error
+            except Exception as e:
+                upsert_error = f"Upsert error: {str(e)}"
+                last_error = f"{last_error}; {upsert_error}" if last_error else upsert_error
+
+        # Approach 3: Try direct update endpoint
+        if email and campaign_id:
+            try:
+                success, err = self.update_lead_direct(email, variables, campaign_id)
+                if success:
+                    return (True, None)
+                last_error = f"{last_error}; {err}" if last_error else err
+            except Exception as e:
+                direct_error = f"Direct update error: {str(e)}"
+                last_error = f"{last_error}; {direct_error}" if last_error else direct_error
 
         return (False, last_error)
 

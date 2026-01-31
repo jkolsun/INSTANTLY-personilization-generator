@@ -191,56 +191,51 @@ KNOWN_TOOLS: List[str] = [
 ]
 
 
-# Line templates by artifact type - varied, compelling openers
+# Line templates by artifact type - clear, concise, compelling hooks
 TEMPLATES: Dict[ArtifactType, List[str]] = {
     ArtifactType.EXACT_PHRASE: [
-        'That "{artifact_text}" line on your site caught my eye.',
-        'Love how you put it: "{artifact_text}"',
-        '"{artifact_text}" — that really resonated.',
-        'Your "{artifact_text}" messaging is spot on.',
+        'Loved this on your site: {artifact_text}',
+        'This stood out: {artifact_text}',
+        'Great line on your site about {artifact_text}',
     ],
     ArtifactType.CLIENT_OR_PROJECT: [
-        'Saw the {artifact_text} project — impressive work.',
-        'The {artifact_text} case study caught my attention.',
-        'Nice work on {artifact_text}.',
-        'Came across your {artifact_text} project.',
+        'Saw your work with {artifact_text}.',
+        'The {artifact_text} project caught my eye.',
+        'Impressive work on {artifact_text}.',
+        'Noticed the {artifact_text} case study.',
     ],
     ArtifactType.TOOL_PLATFORM: [
-        'Noticed you run on {artifact_text} — we should talk.',
-        'Saw {artifact_text} in your stack.',
+        'Saw you use {artifact_text}.',
+        'Noticed {artifact_text} in your stack.',
         'Fellow {artifact_text} user here.',
-        'The {artifact_text} setup caught my eye.',
     ],
     ArtifactType.COMPETITOR: [
-        'Saw you compete with {artifact_text} — interesting space.',
-        'Noticed {artifact_text} in your market.',
-        'You and {artifact_text} seem to be going head-to-head.',
+        'Noticed you compete with {artifact_text}.',
+        'Saw {artifact_text} in your space.',
     ],
     ArtifactType.SERVICE_PROGRAM: [
-        'Your {artifact_text} offering looks solid.',
-        'Saw you do {artifact_text} — that caught my eye.',
-        'The {artifact_text} service stood out to me.',
-        'Noticed the {artifact_text} program.',
+        'Your {artifact_text} service looks solid.',
+        'Noticed you offer {artifact_text}.',
+        'The {artifact_text} program caught my eye.',
     ],
     ArtifactType.HIRING_SIGNAL: [
-        'Saw you\'re growing the team with a {artifact_text} role.',
-        'The {artifact_text} opening caught my attention.',
-        'Looks like you\'re scaling — saw the {artifact_text} listing.',
+        'Saw you are hiring for {artifact_text}.',
+        'Noticed the {artifact_text} role.',
+        'Looks like you are scaling with {artifact_text}.',
     ],
     ArtifactType.LOCATION: [
-        'Noticed you serve the {artifact_text} area.',
-        'Saw the {artifact_text} focus on your site.',
+        'Noticed you serve {artifact_text}.',
+        'Saw your focus on {artifact_text}.',
         'Fellow {artifact_text} business here.',
     ],
     ArtifactType.COMPANY_DESCRIPTION: [
-        '"{artifact_text}" — love how you describe it.',
-        'That "{artifact_text}" positioning is clear.',
-        'Saw "{artifact_text}" on your site.',
+        'Liked this about you: {artifact_text}',
+        'This stood out: {artifact_text}',
     ],
     ArtifactType.FALLBACK: [
-        'Came across your site and wanted to reach out.',
-        'Found your company online — had to say hi.',
-        'Your website caught my attention.',
+        'Came across your company online.',
+        'Found your site and wanted to connect.',
+        'Your company caught my attention.',
     ],
 }
 
