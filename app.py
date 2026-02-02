@@ -8,7 +8,6 @@ import io
 import json
 import logging
 import os
-import time
 from datetime import datetime
 from typing import List, Optional, Tuple
 
@@ -78,8 +77,8 @@ def delete_saved_results():
 
 # Page configuration
 st.set_page_config(
-    page_title="Personalization Engine",
-    page_icon="",
+    page_title="Instantly Tools",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -244,41 +243,61 @@ def process_single_row(
 def render_sidebar():
     """Render the sidebar navigation."""
     with st.sidebar:
-        st.title("Personalization Engine")
+        st.title("Instantly Tools")
+        st.caption("Lead personalization & automation")
         st.markdown("---")
 
+        # Main Instantly Tools Section
+        st.markdown("### Instantly")
         page = st.radio(
-            "Navigation",
-            ["Upload & Preview", "Process Leads", "Results & Stats", "Artifact Inspector", "Instantly Sync"],
+            "Instantly Tools",
+            ["Campaign Personalization", "Unibox Automation"],
             label_visibility="collapsed",
+            key="instantly_nav",
         )
 
-        st.markdown("---")
-
-        # Show quick stats if data is loaded
-        if st.session_state.df_input is not None:
-            st.markdown("### Data Status")
-            st.metric("Leads Loaded", len(st.session_state.df_input))
-
-            if st.session_state.df_processed is not None:
-                st.metric("Processed", len(st.session_state.df_processed))
-                if st.session_state.processing_stats:
-                    stats = st.session_state.processing_stats
+        # Show Instantly stats if available
+        if st.session_state.instantly_sync_complete and st.session_state.instantly_sync_stats:
+            stats = st.session_state.instantly_sync_stats
+            total = stats.get("S", 0) + stats.get("A", 0) + stats.get("B", 0)
+            if total > 0:
+                st.markdown("---")
+                st.markdown("##### Last Run")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Processed", total)
+                with col2:
                     high_conf = stats.get("S", 0) + stats.get("A", 0)
-                    total = sum(stats.get(t, 0) for t in ["S", "A", "B"])
-                    if total > 0:
-                        st.metric("High Confidence", f"{high_conf/total*100:.0f}%")
+                    st.metric("Quality", f"{high_conf/total*100:.0f}%")
 
         st.markdown("---")
-        st.markdown("**Quick Actions**")
 
-        if st.button("Clear All Data", width="stretch"):
-            st.session_state.df_input = None
-            st.session_state.df_processed = None
-            st.session_state.processing_complete = False
-            st.session_state.processing_stats = {}
-            st.session_state.artifacts_log = []
-            st.rerun()
+        # CSV Tools in collapsible section
+        with st.expander("CSV Tools (Advanced)", expanded=False):
+            st.caption("Process leads from CSV files")
+            csv_page = st.radio(
+                "CSV Tools",
+                ["Upload & Preview", "Process Leads", "Results & Stats", "Artifact Inspector"],
+                label_visibility="collapsed",
+                key="csv_nav",
+            )
+
+            # Show CSV stats if data is loaded
+            if st.session_state.df_input is not None:
+                st.markdown("---")
+                st.metric("CSV Leads", len(st.session_state.df_input))
+
+            if st.button("Clear CSV Data", use_container_width=True):
+                st.session_state.df_input = None
+                st.session_state.df_processed = None
+                st.session_state.processing_complete = False
+                st.session_state.processing_stats = {}
+                st.session_state.artifacts_log = []
+                st.rerun()
+
+            # If CSV tool is selected, override the page
+            if csv_page:
+                page = f"CSV:{csv_page}"
 
     return page
 
@@ -736,8 +755,9 @@ def render_inspector_page():
 
 
 def render_instantly_page():
-    """Render the Instantly sync page."""
-    st.header("Instantly Sync")
+    """Render the Campaign Personalization page."""
+    st.header("Campaign Personalization")
+    st.caption("Generate and sync personalization lines to your Instantly campaigns")
 
     # ========== WORKFLOW STATUS BAR ==========
     # Determine current workflow state
@@ -919,23 +939,8 @@ def render_instantly_page():
                             limit=10000,  # Always fetch all
                         )
 
-                        # DEBUG: Show what's in the first lead's data
-                        if leads:
-                            first_lead = leads[0]
-                            st.write("**DEBUG - First lead raw_data keys:**", list(first_lead.raw_data.keys()))
-                            st.write("**DEBUG - payload field:**", first_lead.raw_data.get("payload", "NO PAYLOAD"))
-                            st.write("**DEBUG - custom_variables (parsed):**", first_lead.custom_variables)
-                            st.write("**DEBUG - personalization_line:**",
-                                    first_lead.custom_variables.get("personalization_line", "NOT FOUND"))
-
-                            # Count leads with/without personalization to verify detection
-                            with_pers = sum(1 for l in leads if l.custom_variables.get("personalization_line") and str(l.custom_variables.get("personalization_line")).strip())
-                            without_pers = len(leads) - with_pers
-                            st.success(f"**Detection check:** {with_pers} leads WITH personalization, {without_pers} leads WITHOUT (new)")
-
                         st.session_state.instantly_leads = leads
                         st.session_state.instantly_sync_complete = False  # Reset for new fetch
-                        time.sleep(3)  # Let user see debug info
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error fetching leads: {e}")
@@ -1630,22 +1635,44 @@ def render_instantly_page():
         """)
 
 
+def render_unibox_page():
+    """Render the Unibox Automation page (placeholder)."""
+    st.header("Unibox Automation")
+    st.info("Coming Soon: Automated follow-up sequences through Instantly Unibox")
+
+    st.markdown("---")
+    st.markdown("""
+    ### Planned Features
+    - Automated reply detection and categorization
+    - Smart follow-up sequences based on reply sentiment
+    - Lead status tracking and updates
+    - Integration with Campaign Personalization
+    """)
+
+    st.markdown("---")
+    st.caption("This feature is under development. Stay tuned!")
+
+
 def main():
     """Main application entry point."""
     init_session_state()
 
     page = render_sidebar()
 
-    if page == "Upload & Preview":
-        render_upload_page()
-    elif page == "Process Leads":
-        render_process_page()
-    elif page == "Results & Stats":
-        render_results_page()
-    elif page == "Artifact Inspector":
-        render_inspector_page()
-    elif page == "Instantly Sync":
+    # Instantly Tools (primary)
+    if page == "Campaign Personalization":
         render_instantly_page()
+    elif page == "Unibox Automation":
+        render_unibox_page()
+    # CSV Tools (secondary)
+    elif page == "CSV:Upload & Preview":
+        render_upload_page()
+    elif page == "CSV:Process Leads":
+        render_process_page()
+    elif page == "CSV:Results & Stats":
+        render_results_page()
+    elif page == "CSV:Artifact Inspector":
+        render_inspector_page()
 
 
 if __name__ == "__main__":
