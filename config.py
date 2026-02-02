@@ -70,7 +70,7 @@ ARTIFACT_PRIORITY: List[ArtifactType] = [
 ]
 
 
-# Banned timing words (never use)
+# Banned timing words (never use) - VU-03 expanded
 BANNED_TIMING_WORDS: List[str] = [
     "recently",
     "just",
@@ -79,10 +79,22 @@ BANNED_TIMING_WORDS: List[str] = [
     "launched",
     "new",
     "latest",
+    # VU-03: Expanded timing words
+    "upcoming",
+    "soon",
+    "now",
+    "this year",
+    "this month",
+    "this week",
+    "today",
+    "yesterday",
+    "last week",
+    "last month",
+    "last year",
 ]
 
 
-# Banned hype adjectives
+# Banned hype adjectives - VU-04 expanded
 BANNED_HYPE_ADJECTIVES: List[str] = [
     "impressive",
     "amazing",
@@ -96,6 +108,22 @@ BANNED_HYPE_ADJECTIVES: List[str] = [
     "wonderful",
     "great",
     "awesome",
+    # VU-04: Expanded hype words
+    "revolutionary",
+    "game-changing",
+    "cutting-edge",
+    "world-class",
+    "industry-leading",
+    "best-in-class",
+    "unparalleled",
+    "exceptional",
+    "top-notch",
+    "premier",
+    "remarkable",
+    "stunning",
+    "superb",
+    "terrific",
+    "tremendous",
 ]
 
 
@@ -192,22 +220,23 @@ KNOWN_TOOLS: List[str] = [
 
 
 # Line templates by artifact type - clear, concise, compelling hooks
+# TF-01 through TF-04: Fixed to remove hype words and improve fallbacks
 TEMPLATES: Dict[ArtifactType, List[str]] = {
     ArtifactType.EXACT_PHRASE: [
         'Loved this on your site: {artifact_text}',
         'This stood out: {artifact_text}',
-        'Great line on your site about {artifact_text}',
+        'This line on your site stood out: {artifact_text}',  # TF-02: Removed "Great"
     ],
     ArtifactType.CLIENT_OR_PROJECT: [
         'Saw your work with {artifact_text}.',
         'The {artifact_text} project caught my eye.',
-        'Impressive work on {artifact_text}.',
+        'Noticed your work on {artifact_text}.',  # TF-01: Removed "Impressive"
         'Noticed the {artifact_text} case study.',
     ],
     ArtifactType.TOOL_PLATFORM: [
         'Saw you use {artifact_text}.',
         'Noticed {artifact_text} in your stack.',
-        'Fellow {artifact_text} user here.',
+        'Saw that your team uses {artifact_text}.',
     ],
     ArtifactType.COMPETITOR: [
         'Noticed you compete with {artifact_text}.',
@@ -224,18 +253,18 @@ TEMPLATES: Dict[ArtifactType, List[str]] = {
         'Looks like you are scaling with {artifact_text}.',
     ],
     ArtifactType.LOCATION: [
-        'Noticed you serve {artifact_text}.',
-        'Saw your focus on {artifact_text}.',
-        'Fellow {artifact_text} business here.',
+        'Noticed your team serves {artifact_text}.',
+        'Saw your focus on the {artifact_text} area.',
+        'Noticed you serve the {artifact_text} market.',
     ],
     ArtifactType.COMPANY_DESCRIPTION: [
-        'Liked this about you: {artifact_text}',
-        'This stood out: {artifact_text}',
+        'This stood out about your team: {artifact_text}',
+        'Noticed this about your work: {artifact_text}',
     ],
     ArtifactType.FALLBACK: [
-        'Came across your company online.',
-        'Found your site and wanted to connect.',
-        'Your company caught my attention.',
+        'Came across your team while researching.',  # TF-03: More specific
+        'Noticed your team online and wanted to reach out.',  # TF-04: Better framing
+        'Came across your company and wanted to connect.',
     ],
 }
 
@@ -271,6 +300,7 @@ USER_AGENT: str = (
 # Artifact constraints
 MIN_ARTIFACT_WORDS: int = 2
 MAX_ARTIFACT_WORDS: int = 8  # Ideal: 2-6 words
+MIN_LINE_WORDS: int = 8  # VU-02: Minimum word count to catch fragments
 MAX_LINE_WORDS: int = 18
 
 # Tier definitions for selection logic

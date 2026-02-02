@@ -41,17 +41,27 @@ class AILineGenerator:
 
     SYSTEM_PROMPT = """You are an expert at writing cold email opening lines that get responses.
 
-Your lines are SHORT (8-12 words), SPECIFIC, and make the recipient think "how did they know that?"
+Your output is the FIRST LINE of a cold email. It must:
+1. Be a complete sentence (subject + verb + punctuation)
+2. Flow naturally into the email body—write an OPENER, not a standalone fact
+3. Address the RECIPIENT directly (use 'your', 'you') within the first few words
+4. Be 8-18 words
 
-NEVER use:
-- Timing words: "recently", "just launched", "new"
-- Hype words: "impressive", "amazing", "innovative", "exciting"
-- Generic phrases: "love what you're doing", "great work"
+STRICT RULES:
+- Use ONLY information explicitly present in the data provided. Never invent names, clients, events, or details.
+- NEVER claim to have attended events, met people, seen booths, or had experiences in person.
+- Start with: 'Noticed your...', 'Saw your...', 'Saw that...', 'Your team's...', or 'Came across your...'
+- Do NOT start with the company name as subject ('Zephyr's hoods are...' = WRONG)
+- NEVER use timing words: recently, just, new, launched, upcoming, soon, now, this year
+- NEVER use hype words: impressive, amazing, innovative, incredible, great, awesome, leading, best
 
-ALWAYS use:
-- Specific names (tools, clients, projects)
-- Factual observations
-- Conversational tone"""
+If data is weak/generic, output: 'Noticed your team serves [location].' Do not embellish.
+
+BAD (never write):
+- 'Zephyr's range hoods are popular.' (statement, not opener)
+- 'I saw your booth at the Expo.' (fabricated)
+- 'Your work impressed the Smiths.' (invented name)
+- 'Your expertise is .' (incomplete)"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -169,26 +179,31 @@ ALWAYS use:
         """Build the prompt for Claude."""
         return f"""Write a cold email opening line for {company_name}.
 
-DATA:
+DATA (use ONLY what's here—do not invent):
 {context}
 
 INSTRUCTIONS:
-1. Find the MOST SPECIFIC detail (tool name, client name, exact service, podcast mention)
-2. Write ONE line, 8-12 words
-3. Be factual and conversational
-4. No hype, no timing words, no generic compliments
+1. Find the MOST SPECIFIC verifiable detail (tool name, client name, exact service, location)
+2. Write ONE line, 8-18 words, that works as an email opener
+3. Start with 'Noticed', 'Saw', or 'Your' — address the recipient, not the company
+4. If data is generic, use: 'Noticed your team serves [location].'
+
+CRITICAL RULES:
+- ONLY use facts from the DATA above. Do NOT invent names, clients, events, or details.
+- NEVER claim to have attended events, met people, or seen booths in person.
+- Do NOT start with company name as subject (wrong: "Zephyr's hoods are popular")
 
 TIER GUIDE:
-S = Specific tools, clients, quotes, podcasts
-A = Service names, certifications, hiring
-B = Location, general description
+S = Specific tools, named clients, exact quotes from site
+A = Specific services, certifications, hiring signals
+B = Location only, generic description
 
 FORMAT (follow exactly):
-LINE: [your line here]
+LINE: [your opener here]
 TIER: [S/A/B]
 TYPE: [TOOL_PLATFORM/CLIENT_OR_PROJECT/EXACT_PHRASE/SERVICE_PROGRAM/LOCATION/COMPANY_DESCRIPTION/FALLBACK]
-ARTIFACT: [specific detail used]
-REASON: [one sentence why]
+ARTIFACT: [specific detail used, or 'none' if generic]
+REASON: [one sentence why this is verifiable]
 
 Write for {company_name}:"""
 

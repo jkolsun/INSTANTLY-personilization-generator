@@ -144,15 +144,16 @@ class InstantlyPersonalizer:
         # Generate personalization line
         line = self.generator.generate(selected)
 
-        # Validate line
-        validation = self.validator.validate(line, selected)
+        # Validate line (pass company_name for VU-08/VU-09 checks)
+        company_name = lead.company_name or ""
+        validation = self.validator.validate(line, selected, company_name=company_name)
 
         # If validation fails, try other artifacts
         if not validation.is_valid and len(valid_artifacts) > 1:
             ranked = self.ranker.rank_artifacts(valid_artifacts)
             for alt_artifact in ranked[1:]:
                 alt_line = self.generator.generate(alt_artifact)
-                alt_validation = self.validator.validate(alt_line, alt_artifact)
+                alt_validation = self.validator.validate(alt_line, alt_artifact, company_name=company_name)
                 if alt_validation.is_valid:
                     selected = alt_artifact
                     line = alt_line

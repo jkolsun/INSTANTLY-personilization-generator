@@ -38,6 +38,13 @@ class CompanyInfo:
     recent_projects: List[str] = field(default_factory=list)
     location: Optional[str] = None
     knowledge_panel: Optional[Dict[str, Any]] = None
+    # SD-06: Confidence scoring fields
+    domain_match_count: int = 0
+    total_results: int = 0
+    is_low_confidence: bool = False
+    # SD-05: Industry mismatch detection
+    industry_mismatch_detected: bool = False
+    mismatched_industry: Optional[str] = None
 
 
 # Known tools/platforms to look for (Tier S artifacts)
@@ -50,6 +57,23 @@ KNOWN_TOOLS = [
     "Stripe", "Square", "PayPal", "Calendly", "Acuity", "Intercom",
     "Drift", "Klaviyo", "Marketo", "Pardot", "Outreach", "Gong",
     "Chorus", "ZoomInfo", "Apollo", "Lusha", "Clearbit", "6sense",
+]
+
+# SD-05: Keywords that indicate wrong industry (for HVAC leads)
+# If these appear but the lead is HVAC, it's likely wrong company data
+WRONG_INDUSTRY_KEYWORDS = [
+    # Different industries that might share company names
+    "lawn care", "lawn service", "landscaping", "mowing",
+    "solar panel", "solar installation", "solar energy", "photovoltaic",
+    "robotics", "automation systems", "industrial robot",
+    "dental", "dentist", "orthodontic",
+    "veterinary", "vet clinic", "animal hospital",
+    "real estate agent", "realtor", "property management",
+    "restaurant", "catering", "food service",
+    "car dealership", "auto sales", "used cars",
+    "hair salon", "beauty salon", "spa services",
+    "law firm", "attorney", "legal services",
+    "accounting firm", "cpa services", "tax preparation",
 ]
 
 
@@ -95,16 +119,59 @@ class SerperClient:
         response.raise_for_status()
         return response.json()
 
-    def get_company_info(self, company_name: str, domain: Optional[str] = None) -> CompanyInfo:
+    def _build_disambiguated_query(
+        self,
+        company_name: str,
+        domain: Optional[str] = None,
+        location: Optional[str] = None
+    ) -> str:
         """
-        Get company information with ONE optimized search query.
+        Build a disambiguated search query using all available signals.
 
-        Uses a single, comprehensive search query that returns
-        LinkedIn, website, and other valuable data in one call.
+        Uses implicit AND (space) instead of OR to ensure results match
+        ALL provided criteria, preventing wrong-company results.
 
         Args:
             company_name: Name of the company
-            domain: Optional company domain for more specific results
+            domain: Company domain for disambiguation
+            location: Company location (city, state) for disambiguation
+
+        Returns:
+            Disambiguated search query string
+        """
+        parts = [f'"{company_name}"']
+
+        # Add domain for disambiguation (most reliable signal)
+        if domain:
+            # Remove www. and protocol if present
+            clean_domain = domain.replace("https://", "").replace("http://", "").replace("www.", "")
+            parts.append(clean_domain)
+
+        # Add location for additional disambiguation
+        if location:
+            # Extract city or first part of location (before comma)
+            city_state = location.split(',')[0].strip() if ',' in location else location.strip()
+            if city_state and len(city_state) > 2:
+                parts.append(city_state)
+
+        return ' '.join(parts)
+
+    def get_company_info(
+        self,
+        company_name: str,
+        domain: Optional[str] = None,
+        location: Optional[str] = None
+    ) -> CompanyInfo:
+        """
+        Get company information with ONE optimized search query.
+
+        Uses a disambiguated search query that includes domain and location
+        to prevent returning data for wrong companies with similar names.
+
+        Args:
+            company_name: Name of the company
+            domain: Optional company domain for disambiguation (highly recommended)
+            location: Optional company location for disambiguation
 
         Returns:
             CompanyInfo with aggregated data
@@ -112,16 +179,23 @@ class SerperClient:
         info = CompanyInfo(name=company_name, description="")
         clean_name = company_name.strip()
 
-        # SINGLE optimized search query that captures everything important
-        # This query is designed to return LinkedIn, website, news, and other results
-        if domain:
-            query = f'"{clean_name}" OR site:{domain}'
-        else:
-            query = f'"{clean_name}" company'
+        # Build disambiguated query using all available signals
+        # Uses implicit AND (space) to ensure results match ALL criteria
+        query = self._build_disambiguated_query(clean_name, domain, location)
+
+        logger.info(f"Serper query for {company_name}: {query}")
 
         try:
             results = self.search(query, num_results=15)
             self._process_search_results(results, info)
+
+            # SD-04 & SD-06: Validate domain matches in results
+            if domain:
+                self._validate_domain_matches(results, domain, info)
+
+            # SD-05: Check for industry mismatch
+            self._check_industry_mismatch(info)
+
         except requests.HTTPError as e:
             logger.error(f"Serper API error for {company_name}: {e}")
         except Exception as e:
@@ -224,6 +298,78 @@ class SerperClient:
                 clean = match.strip()[:50]
                 if len(clean) > 3 and clean not in info.clients:
                     info.clients.append(clean)
+
+    def _validate_domain_matches(
+        self,
+        results: Dict[str, Any],
+        expected_domain: str,
+        info: CompanyInfo
+    ):
+        """
+        SD-04 & SD-06: Validate that search results match expected domain.
+
+        Counts how many results contain the expected domain.
+        If fewer than 3 results match, marks as low confidence.
+
+        Args:
+            results: Raw Serper API response
+            expected_domain: Expected company domain
+            info: CompanyInfo to update with validation results
+        """
+        organic = results.get("organic", [])
+        info.total_results = len(organic)
+
+        if not expected_domain:
+            return
+
+        # Clean domain for matching
+        clean_domain = expected_domain.lower().replace("https://", "").replace("http://", "").replace("www.", "")
+        # Extract just the base domain (e.g., "example.com" from "example.com/page")
+        base_domain = clean_domain.split('/')[0]
+
+        domain_matches = 0
+        for item in organic:
+            link = item.get("link", "").lower()
+            if base_domain in link:
+                domain_matches += 1
+
+        info.domain_match_count = domain_matches
+
+        # SD-06: If fewer than 3 results contain the expected domain, flag as low confidence
+        if domain_matches < 3:
+            info.is_low_confidence = True
+            logger.warning(
+                f"Low confidence for {info.name}: only {domain_matches}/{info.total_results} "
+                f"results match domain {base_domain}"
+            )
+
+    def _check_industry_mismatch(self, info: CompanyInfo):
+        """
+        SD-05: Check if Serper results indicate wrong industry.
+
+        Scans all snippets for keywords that suggest the data is for
+        a different company in a different industry.
+
+        Args:
+            info: CompanyInfo to check and update
+        """
+        # Combine all text content to scan
+        all_text = " ".join([
+            info.description,
+            " ".join(info.snippets),
+            " ".join(info.linkedin_info),
+            " ".join(info.services),
+        ]).lower()
+
+        for keyword in WRONG_INDUSTRY_KEYWORDS:
+            if keyword in all_text:
+                info.industry_mismatch_detected = True
+                info.mismatched_industry = keyword
+                logger.warning(
+                    f"Industry mismatch detected for {info.name}: "
+                    f"found '{keyword}' in results"
+                )
+                break
 
     def _build_description(self, info: CompanyInfo) -> str:
         """Build comprehensive description from gathered info."""

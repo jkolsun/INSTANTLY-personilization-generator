@@ -1135,12 +1135,14 @@ def render_instantly_page():
 
                             company_name = lead.company_name or "Unknown"
                             domain = lead.company_domain or ""
+                            # Extract location BEFORE Serper call for query disambiguation
+                            location = lead.raw_data.get("location", "") or lead.raw_data.get("city", "")
                             status_text.markdown(f"**Processing:** {company_name} ({processed_count + 1} of {process_count} to process)")
 
-                            # Use Serper to get rich company info
+                            # Use Serper to get rich company info with disambiguated query
                             serper_description = ""
                             try:
-                                company_info = serper.get_company_info(company_name, domain)
+                                company_info = serper.get_company_info(company_name, domain, location)
                                 serper_description = extract_artifacts_from_serper(company_info)
                                 if serper_description and len(serper_description) > 20:
                                     stats["serper_success"] += 1
@@ -1164,6 +1166,22 @@ def render_instantly_page():
                             # Track data source
                             has_serper_data = bool(serper_description and len(serper_description) > 20)
 
+                            # SD-04/SD-05/SD-06: Check Serper confidence - use safe fallback if low confidence or industry mismatch
+                            serper_is_reliable = True
+                            if has_serper_data and 'company_info' in dir():
+                                if company_info.is_low_confidence:
+                                    logging.warning(f"Low confidence Serper data for {company_name} - using safe fallback")
+                                    serper_description = ""  # Clear unreliable data
+                                    serper_is_reliable = False
+                                    stats["serper_fail"] += 1
+                                    stats["serper_success"] -= 1
+                                elif company_info.industry_mismatch_detected:
+                                    logging.warning(f"Industry mismatch for {company_name} ({company_info.mismatched_industry}) - using safe fallback")
+                                    serper_description = ""  # Clear wrong-industry data
+                                    serper_is_reliable = False
+                                    stats["serper_fail"] += 1
+                                    stats["serper_success"] -= 1
+
                             if use_ai and ai_generator:
                                 # Use Claude AI to generate the line
                                 ai_result = ai_generator.generate_line(
@@ -1180,13 +1198,41 @@ def render_instantly_page():
                                     stats["claude_success"] += 1
                                     logging.info(f"Claude SUCCESS for {company_name}: {ai_result.line[:50]}")
 
+                                # Validate AI-generated line with company_name for VU-08/VU-09 checks
+                                ai_artifact = Artifact(
+                                    text=ai_result.artifact_used or "",
+                                    artifact_type=ArtifactType.FALLBACK if ai_result.artifact_type == "FALLBACK" else ArtifactType.EXACT_PHRASE,
+                                    evidence_source="claude_ai",
+                                    evidence_url="",
+                                    score=1.0,
+                                )
+                                ai_validation = validator.validate(ai_result.line, ai_artifact, company_name=company_name)
+
+                                final_line = ai_result.line
+                                final_tier = ai_result.confidence_tier
+                                final_type = ai_result.artifact_type
+                                final_artifact = ai_result.artifact_used
+                                final_reasoning = ai_result.reasoning
+
+                                if not ai_validation.is_valid:
+                                    # AI line failed validation - use safe fallback
+                                    logging.warning(f"AI line failed validation for {company_name}: {ai_validation.errors}")
+                                    final_line = "Came across your company online."
+                                    final_tier = "B"
+                                    final_type = "FALLBACK"
+                                    final_artifact = ""
+                                    final_reasoning = f"Original failed validation: {'; '.join(ai_validation.errors)}"
+                                    stats["claude_fail"] += 1
+                                    if ai_result.artifact_type not in ["API_ERROR", "UNEXPECTED_ERROR", "FALLBACK"]:
+                                        stats["claude_success"] -= 1
+
                                 variables = {
-                                    "personalization_line": ai_result.line,
-                                    "artifact_type": ai_result.artifact_type,
-                                    "artifact_text": ai_result.artifact_used,
-                                    "confidence_tier": ai_result.confidence_tier,
+                                    "personalization_line": final_line,
+                                    "artifact_type": final_type,
+                                    "artifact_text": final_artifact,
+                                    "confidence_tier": final_tier,
                                     "evidence_source": "claude_ai" + ("+serper" if has_serper_data else ""),
-                                    "ai_reasoning": ai_result.reasoning,  # Include reasoning for debugging
+                                    "ai_reasoning": final_reasoning,
                                 }
                             else:
                                 # Fallback to template-based generation
@@ -1230,13 +1276,13 @@ def render_instantly_page():
                                 # Generate line
                                 line = generator.generate(selected)
 
-                                # Validate line, try alternatives if needed
-                                validation = validator.validate(line, selected)
+                                # Validate line, try alternatives if needed (pass company_name for VU-08/VU-09)
+                                validation = validator.validate(line, selected, company_name=company_name)
                                 if not validation.is_valid and len(valid_artifacts) > 1:
                                     ranked = ranker.rank_artifacts(valid_artifacts)
                                     for alt in ranked[1:]:
                                         alt_line = generator.generate(alt)
-                                        if validator.validate(alt_line, alt).is_valid:
+                                        if validator.validate(alt_line, alt, company_name=company_name).is_valid:
                                             selected = alt
                                             line = alt_line
                                             break

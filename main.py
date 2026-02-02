@@ -55,6 +55,7 @@ def process_row(
     site_url = get_site_url(row)
     description = get_company_description(row)
     location = get_location(row)
+    company_name = get_company_name(row)
 
     # Scrape website if URL available
     website_elements = None
@@ -90,8 +91,8 @@ def process_row(
     # Generate personalization line
     line = generator.generate(selected)
 
-    # Validate line
-    validation = validator.validate(line, selected)
+    # Validate line (pass company_name for VU-08/VU-09 checks)
+    validation = validator.validate(line, selected, company_name=company_name)
 
     # If validation fails, try other artifacts
     if not validation.is_valid and len(valid_artifacts) > 1:
@@ -99,7 +100,7 @@ def process_row(
         ranked = ranker.rank_artifacts(valid_artifacts)
         for alt_artifact in ranked[1:]:  # Skip first (already tried)
             alt_line = generator.generate(alt_artifact)
-            alt_validation = validator.validate(alt_line, alt_artifact)
+            alt_validation = validator.validate(alt_line, alt_artifact, company_name=company_name)
             if alt_validation.is_valid:
                 selected = alt_artifact
                 line = alt_line
