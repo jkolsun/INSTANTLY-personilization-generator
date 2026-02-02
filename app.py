@@ -251,7 +251,7 @@ def render_sidebar():
         st.markdown("### Instantly")
         page = st.radio(
             "Instantly Tools",
-            ["Campaign Personalization", "Unibox Automation"],
+            ["CSV Personalization", "Campaign Sync", "Unibox Automation"],
             label_visibility="collapsed",
             key="instantly_nav",
         )
@@ -754,10 +754,423 @@ def render_inspector_page():
                         st.markdown(f"**URL:** {a.evidence_url}")
 
 
+def render_csv_personalization_page():
+    """Render the CSV Personalization page - Upload CSV, process, download, optionally push to Instantly."""
+    st.header("CSV Personalization")
+    st.caption("Upload CSV → Build personalization → Download CSV → Optional push to Instantly")
+
+    # Initialize session state for CSV workflow
+    if "csv_upload_df" not in st.session_state:
+        st.session_state.csv_upload_df = None
+    if "csv_processed_df" not in st.session_state:
+        st.session_state.csv_processed_df = None
+    if "csv_results_log" not in st.session_state:
+        st.session_state.csv_results_log = []
+    if "csv_processing_complete" not in st.session_state:
+        st.session_state.csv_processing_complete = False
+    if "csv_processing_stats" not in st.session_state:
+        st.session_state.csv_processing_stats = {}
+
+    # ========== STEP 1: API CONFIGURATION ==========
+    with st.expander("API Configuration", expanded=not st.session_state.anthropic_connected):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### Claude AI (Required)")
+            anthropic_key = st.text_input(
+                "Anthropic API Key",
+                value=st.session_state.anthropic_api_key,
+                type="password",
+                help="From console.anthropic.com",
+                key="csv_anthropic_input",
+            )
+            if st.session_state.anthropic_connected:
+                st.success("Connected")
+            elif st.button("Connect Claude", type="primary", key="csv_anthropic_connect"):
+                if anthropic_key:
+                    with st.spinner("Testing..."):
+                        if test_anthropic_key(anthropic_key):
+                            st.session_state.anthropic_api_key = anthropic_key
+                            st.session_state.anthropic_connected = True
+                            st.session_state.use_ai_generation = True
+                            st.rerun()
+                        else:
+                            st.error("Invalid key.")
+
+        with col2:
+            st.markdown("#### Instantly (Optional - for pushing)")
+            instantly_key = st.text_input(
+                "Instantly API Key",
+                value=st.session_state.instantly_api_key,
+                type="password",
+                help="Only needed if you want to push to Instantly",
+                key="csv_instantly_input",
+            )
+            if st.session_state.instantly_connected:
+                st.success("Connected")
+            elif st.button("Connect Instantly", key="csv_instantly_connect"):
+                if instantly_key:
+                    with st.spinner("Testing..."):
+                        try:
+                            client = InstantlyClient(instantly_key)
+                            if client.test_connection():
+                                st.session_state.instantly_api_key = instantly_key
+                                st.session_state.instantly_connected = True
+                                st.session_state.instantly_campaigns = client.list_campaigns()
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+    st.markdown("---")
+
+    # ========== STEP 2: UPLOAD CSV ==========
+    st.markdown("### Step 1: Upload CSV")
+
+    uploaded_file = st.file_uploader(
+        "Upload your leads CSV",
+        type=["csv"],
+        help="CSV with company_name, website/domain, and email columns",
+        key="csv_uploader",
+    )
+
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file, low_memory=False)
+            df = normalize_columns(df)
+            st.session_state.csv_upload_df = df
+            # Reset processing state when new file uploaded
+            st.session_state.csv_processing_complete = False
+            st.session_state.csv_processed_df = None
+            st.session_state.csv_results_log = []
+            st.success(f"Loaded {len(df)} leads")
+        except Exception as e:
+            st.error(f"Error reading file: {e}")
+
+    # Show preview if data loaded
+    if st.session_state.csv_upload_df is not None:
+        df = st.session_state.csv_upload_df
+
+        with st.expander(f"Preview {len(df)} leads", expanded=True):
+            preview_cols = [c for c in df.columns if c.lower() in [
+                "company_name", "email", "first_name", "last_name",
+                "website", "site_url", "domain", "location", "city", "state"
+            ]]
+            if not preview_cols:
+                preview_cols = df.columns[:6].tolist()
+            st.dataframe(df[preview_cols].head(20), use_container_width=True, hide_index=True)
+            if len(df) > 20:
+                st.caption(f"Showing 20 of {len(df)} leads")
+
+        st.markdown("---")
+
+        # ========== STEP 3: PROCESS ==========
+        st.markdown("### Step 2: Build Personalization")
+
+        if not st.session_state.anthropic_connected:
+            st.warning("Connect Claude AI above to enable processing")
+        else:
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                limit = st.number_input(
+                    "Limit (0 = all)",
+                    min_value=0,
+                    max_value=len(df),
+                    value=0,
+                    help="Process only first N leads for testing",
+                    key="csv_limit",
+                )
+            with col2:
+                actual_count = limit if limit > 0 else len(df)
+                st.metric("Will Process", actual_count)
+
+            # Confirmation
+            confirm = st.checkbox(
+                f"I confirm I want to process {actual_count} leads",
+                key="csv_confirm_process",
+            )
+
+            if st.button("Build Personalization", type="primary", disabled=not confirm, use_container_width=True):
+                # Initialize components
+                serper = SerperClient(st.session_state.serper_api_key)
+                ai_generator = AILineGenerator(st.session_state.anthropic_api_key)
+                validator = Validator()
+
+                # Test Claude API first
+                st.info("Testing Claude API...")
+                test_result = ai_generator.generate_line("Test", "Test company", {})
+                if test_result.artifact_type in ["API_ERROR", "UNEXPECTED_ERROR", "CONNECTION_ERROR"]:
+                    st.error(f"Claude API failed: {test_result.reasoning}")
+                    st.stop()
+                st.success("Claude API ready!")
+
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                stats_display = st.empty()
+
+                rows_to_process = df.head(limit) if limit > 0 else df
+                total = len(rows_to_process)
+
+                stats = {"S": 0, "A": 0, "B": 0, "errors": 0}
+                results_log = []
+                results_data = []
+
+                for idx, (row_idx, row) in enumerate(rows_to_process.iterrows()):
+                    try:
+                        company_name = get_company_name(row) or "Unknown"
+                        domain = get_site_url(row) or ""
+                        location = get_location(row) or ""
+                        email = row.get("email", "") or ""
+
+                        status_text.markdown(f"**Processing:** {company_name} ({idx + 1}/{total})")
+
+                        # Serper lookup
+                        serper_description = ""
+                        try:
+                            company_info = serper.get_company_info(company_name, domain, location)
+                            serper_description = extract_artifacts_from_serper(company_info)
+
+                            # Check confidence
+                            if company_info.is_low_confidence or company_info.industry_mismatch_detected:
+                                serper_description = ""
+                        except Exception:
+                            pass
+
+                        # Build lead data
+                        lead_data = {
+                            "company_description": row.get("company_description", "") or "",
+                            "industry": row.get("industry", "") or "",
+                            "location": location,
+                        }
+
+                        # Generate line with Claude
+                        ai_result = ai_generator.generate_line(
+                            company_name=company_name,
+                            serper_data=serper_description,
+                            lead_data=lead_data,
+                        )
+
+                        # Validate
+                        ai_artifact = Artifact(
+                            text=ai_result.artifact_used or "",
+                            artifact_type=ArtifactType.EXACT_PHRASE if ai_result.artifact_type != "FALLBACK" else ArtifactType.FALLBACK,
+                            evidence_source="claude_ai",
+                            evidence_url="",
+                            score=1.0,
+                        )
+                        validation = validator.validate(ai_result.line, ai_artifact, company_name=company_name)
+
+                        if validation.is_valid:
+                            final_line = ai_result.line
+                            final_tier = ai_result.confidence_tier
+                            final_type = ai_result.artifact_type
+                        else:
+                            final_line = "Came across your company online."
+                            final_tier = "B"
+                            final_type = "FALLBACK"
+
+                        stats[final_tier] = stats.get(final_tier, 0) + 1
+
+                        results_log.append({
+                            "email": email,
+                            "company": company_name,
+                            "line": final_line,
+                            "tier": final_tier,
+                            "type": final_type,
+                            "artifact": ai_result.artifact_used or "",
+                            "source": "Serper+Claude" if serper_description else "Claude",
+                        })
+
+                        results_data.append({
+                            "personalization_line": final_line,
+                            "artifact_type": final_type,
+                            "confidence_tier": final_tier,
+                        })
+
+                    except Exception as e:
+                        stats["errors"] += 1
+                        results_log.append({
+                            "email": row.get("email", ""),
+                            "company": get_company_name(row) or "",
+                            "line": f"Error: {str(e)[:50]}",
+                            "tier": "ERROR",
+                            "type": "ERROR",
+                            "artifact": "",
+                            "source": "",
+                        })
+                        results_data.append({
+                            "personalization_line": "Came across your company online.",
+                            "artifact_type": "FALLBACK",
+                            "confidence_tier": "B",
+                        })
+
+                    progress_bar.progress((idx + 1) / total)
+
+                    # Update stats
+                    processed = stats["S"] + stats["A"] + stats["B"]
+                    if processed > 0:
+                        stats_display.markdown(f"""
+                        **Progress:** {idx + 1}/{total} | S: {stats['S']} | A: {stats['A']} | B: {stats['B']} | Errors: {stats['errors']}
+                        """)
+
+                # Create processed DataFrame
+                results_df = pd.DataFrame(results_data)
+                processed_df = rows_to_process.copy()
+                for col in results_df.columns:
+                    processed_df[col] = results_df[col].values
+
+                # Save to session state
+                st.session_state.csv_processed_df = processed_df
+                st.session_state.csv_results_log = results_log
+                st.session_state.csv_processing_complete = True
+                st.session_state.csv_processing_stats = stats
+
+                status_text.markdown("**Processing complete!**")
+                st.balloons()
+
+    # ========== STEP 4: RESULTS - DOWNLOAD & PUSH ==========
+    if st.session_state.csv_processing_complete and st.session_state.csv_processed_df is not None:
+        st.markdown("---")
+        st.markdown("### Step 3: Review & Export")
+
+        stats = st.session_state.csv_processing_stats
+        results_log = st.session_state.csv_results_log
+        processed_df = st.session_state.csv_processed_df
+
+        # Stats summary
+        col1, col2, col3, col4 = st.columns(4)
+        total = stats.get("S", 0) + stats.get("A", 0) + stats.get("B", 0)
+        with col1:
+            st.metric("Total", total)
+        with col2:
+            st.metric("Tier S", stats.get("S", 0))
+        with col3:
+            st.metric("Tier A", stats.get("A", 0))
+        with col4:
+            high_conf = stats.get("S", 0) + stats.get("A", 0)
+            st.metric("High Quality", f"{high_conf/total*100:.0f}%" if total > 0 else "0%")
+
+        # Results table
+        results_df = pd.DataFrame(results_log)
+        with st.expander("View Results", expanded=True):
+            st.dataframe(results_df, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        # ========== DOWNLOAD CSV ==========
+        st.markdown("### Step 4: Download CSV")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            csv_all = processed_df.to_csv(index=False)
+            st.download_button(
+                "Download Full CSV",
+                data=csv_all,
+                file_name="personalized_leads.csv",
+                mime="text/csv",
+                use_container_width=True,
+                type="primary",
+            )
+
+        with col2:
+            high_conf_df = processed_df[processed_df["confidence_tier"].isin(["S", "A"])]
+            csv_high = high_conf_df.to_csv(index=False)
+            st.download_button(
+                f"Download High Quality Only ({len(high_conf_df)})",
+                data=csv_high,
+                file_name="high_quality_leads.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+        st.markdown("---")
+
+        # ========== OPTIONAL: PUSH TO INSTANTLY ==========
+        st.markdown("### Step 5: Push to Instantly (Optional)")
+
+        if not st.session_state.instantly_connected:
+            st.info("Connect Instantly API above to enable pushing to campaigns")
+        else:
+            campaigns = st.session_state.instantly_campaigns
+            if campaigns:
+                col1, col2 = st.columns([2, 1])
+
+                with col1:
+                    campaign_options = {f"{c.name} ({c.status})": c.id for c in campaigns}
+                    selected_campaign = st.selectbox(
+                        "Select Campaign",
+                        options=list(campaign_options.keys()),
+                        key="csv_campaign_select",
+                    )
+                    selected_campaign_id = campaign_options[selected_campaign]
+
+                with col2:
+                    if st.button("Refresh Campaigns", key="csv_refresh_campaigns"):
+                        client = InstantlyClient(st.session_state.instantly_api_key)
+                        st.session_state.instantly_campaigns = client.list_campaigns()
+                        st.rerun()
+
+                st.warning("This will update leads in the selected Instantly campaign. Make sure the emails match!")
+
+                confirm_push = st.checkbox(
+                    f"I confirm I want to push {len(results_log)} leads to Instantly",
+                    key="csv_confirm_push",
+                )
+
+                if st.button("Push to Instantly", type="primary", disabled=not confirm_push, use_container_width=True):
+                    instantly_client = InstantlyClient(st.session_state.instantly_api_key)
+
+                    push_progress = st.progress(0)
+                    push_status = st.empty()
+
+                    success_count = 0
+                    fail_count = 0
+
+                    for idx, result in enumerate(results_log):
+                        if result.get("tier") not in ["ERROR", "SKIPPED"]:
+                            variables = {
+                                "personalization_line": result.get("line", ""),
+                                "artifact_type": result.get("type", ""),
+                                "artifact_text": result.get("artifact", ""),
+                                "confidence_tier": result.get("tier", ""),
+                            }
+
+                            update_success, _ = instantly_client.update_lead_variables(
+                                lead_id=None,
+                                variables=variables,
+                                email=result.get("email"),
+                                campaign_id=selected_campaign_id,
+                            )
+
+                            if update_success:
+                                success_count += 1
+                            else:
+                                fail_count += 1
+
+                        push_progress.progress((idx + 1) / len(results_log))
+                        push_status.markdown(f"**Pushing:** {idx + 1}/{len(results_log)} | Success: {success_count} | Failed: {fail_count}")
+
+                    if fail_count == 0:
+                        st.success(f"Successfully pushed {success_count} leads to Instantly!")
+                    else:
+                        st.warning(f"Pushed {success_count} leads, {fail_count} failed (email may not exist in campaign)")
+            else:
+                st.warning("No campaigns found in Instantly")
+
+        # Clear button
+        st.markdown("---")
+        if st.button("Clear & Start Over", key="csv_clear"):
+            st.session_state.csv_upload_df = None
+            st.session_state.csv_processed_df = None
+            st.session_state.csv_results_log = []
+            st.session_state.csv_processing_complete = False
+            st.session_state.csv_processing_stats = {}
+            st.rerun()
+
+
 def render_instantly_page():
-    """Render the Campaign Personalization page."""
-    st.header("Campaign Personalization")
-    st.caption("Generate and sync personalization lines to your Instantly campaigns")
+    """Render the Campaign Sync page - fetch from Instantly, process, sync back."""
+    st.header("Campaign Sync")
+    st.caption("Fetch leads from Instantly campaign, process, and sync back automatically")
 
     # ========== WORKFLOW STATUS BAR ==========
     # Determine current workflow state
@@ -1706,11 +2119,13 @@ def main():
     page = render_sidebar()
 
     # Instantly Tools (primary)
-    if page == "Campaign Personalization":
+    if page == "CSV Personalization":
+        render_csv_personalization_page()
+    elif page == "Campaign Sync":
         render_instantly_page()
     elif page == "Unibox Automation":
         render_unibox_page()
-    # CSV Tools (secondary)
+    # CSV Tools (secondary/advanced)
     elif page == "CSV:Upload & Preview":
         render_upload_page()
     elif page == "CSV:Process Leads":
