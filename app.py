@@ -275,29 +275,29 @@ def render_sidebar():
         # CSV Tools in collapsible section
         with st.expander("CSV Tools (Advanced)", expanded=False):
             st.caption("Process leads from CSV files")
-            csv_page = st.radio(
-                "CSV Tools",
-                ["Upload & Preview", "Process Leads", "Results & Stats", "Artifact Inspector"],
-                label_visibility="collapsed",
-                key="csv_nav",
-            )
 
-            # Show CSV stats if data is loaded
-            if st.session_state.df_input is not None:
-                st.markdown("---")
-                st.metric("CSV Leads", len(st.session_state.df_input))
-
-            if st.button("Clear CSV Data", use_container_width=True):
-                st.session_state.df_input = None
-                st.session_state.df_processed = None
-                st.session_state.processing_complete = False
-                st.session_state.processing_stats = {}
-                st.session_state.artifacts_log = []
+            # Use a button to enter CSV mode
+            if st.button("Open CSV Tools", use_container_width=True, type="secondary"):
+                st.session_state.use_csv_tools = True
                 st.rerun()
 
-            # If CSV tool is selected, override the page
-            if csv_page:
+            if st.session_state.get("use_csv_tools"):
+                csv_page = st.radio(
+                    "CSV Tools",
+                    ["Upload & Preview", "Process Leads", "Results & Stats", "Artifact Inspector"],
+                    label_visibility="collapsed",
+                    key="csv_nav",
+                )
                 page = f"CSV:{csv_page}"
+
+                # Show CSV stats if data is loaded
+                if st.session_state.df_input is not None:
+                    st.markdown("---")
+                    st.metric("CSV Leads", len(st.session_state.df_input))
+
+                if st.button("Back to Instantly Tools", use_container_width=True):
+                    st.session_state.use_csv_tools = False
+                    st.rerun()
 
     return page
 
