@@ -39,24 +39,26 @@ class AILineGenerator:
     Uses Claude Haiku for fast, cost-effective generation.
     """
 
-    SYSTEM_PROMPT = """You write cold email opening lines. Your goal: reference something SPECIFIC about the company that shows you did research.
+    SYSTEM_PROMPT = """You write cold email opening lines. Reference something SPECIFIC that shows you researched the company.
 
-GOOD opening lines (use these as templates):
-- "Noticed your team uses ServiceTitan for scheduling."
-- "Saw your 5-star review from the Johnson family on Google."
-- "Your drain cleaning service in Denver caught my attention."
-- "Noticed you're hiring a new service technician."
-- "Saw your team completed that commercial project at Main Street Plaza."
+PRIORITY ORDER (use the first one available):
+1. TOOLS/SOFTWARE: "Noticed your team uses Freshdesk for customer support." or "Saw you're using Slack for team communication."
+2. SPECIFIC SERVICES: "Your drain cleaning and pipe installation services caught my attention." or "Noticed your water heater repair specialty."
+3. LOCATION + SERVICE: "Saw your 24/7 plumbing service in Denver." or "Noticed your HVAC team serves the Portland area."
+4. LOCATION ONLY (last resort): "Noticed your team serves Nashville, Tennessee."
+
+EXAMPLES:
+- "Noticed your team uses Freshdesk for support tickets."
+- "Saw you're running Constant Contact for email marketing."
+- "Your water heater installation and repair services caught my attention."
+- "Noticed your drain cleaning and sewer line specialty."
+- "Saw your commercial plumbing work in Oklahoma City."
 
 Rules:
-1. Start with "Noticed", "Saw", or "Your"
-2. Reference ONE specific detail from the research data
-3. Keep it 8-15 words
-4. Don't invent client names or events - only use what's in the data
-5. Avoid generic praise words (amazing, innovative, impressive)
-
-If the research only has location info, use: "Noticed your team serves [City, State]."
-If research has services/specialties, mention those specifically."""
+- Start with "Noticed", "Saw", or "Your"
+- Pick ONE specific detail - don't combine multiple
+- 8-15 words max
+- Never invent details not in the data"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -92,6 +94,22 @@ If research has services/specialties, mention those specifically."""
             context_parts.append(f"Research:\n{serper_data}")
 
         if lead_data:
+            # HIGH VALUE: Technologies they use (great for personalization)
+            if lead_data.get("technologies"):
+                techs = lead_data["technologies"]
+                # Filter out generic web techs, keep business tools
+                useful_techs = [t.strip() for t in techs.split(",") if t.strip() and
+                               t.strip().lower() not in ["mobile friendly", "google font api", "bootstrap framework",
+                                                         "apache", "nginx", "remote", "google tag manager",
+                                                         "google analytics", "wordpress.org", "google maps",
+                                                         "google maps (non paid users)", "recaptcha", "facebook widget"]]
+                if useful_techs:
+                    context_parts.append(f"Tools/Software they use: {', '.join(useful_techs[:5])}")
+
+            # HIGH VALUE: Keywords/Services (specific services they offer)
+            if lead_data.get("keywords"):
+                context_parts.append(f"Services/Specialties: {lead_data['keywords'][:300]}")
+
             if lead_data.get("industry"):
                 context_parts.append(f"Industry: {lead_data['industry']}")
             if lead_data.get("location"):

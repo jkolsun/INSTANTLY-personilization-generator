@@ -942,11 +942,16 @@ def render_csv_personalization_page():
                         except Exception:
                             pass
 
-                        # Build lead data
+                        # Build lead data - include Technologies and Keywords from CSV
+                        technologies = row.get("technologies", "") or row.get("Technologies", "") or ""
+                        keywords = row.get("keywords", "") or row.get("Keywords", "") or ""
+
                         lead_data = {
                             "company_description": row.get("company_description", "") or "",
                             "industry": row.get("industry", "") or "",
                             "location": location,
+                            "technologies": str(technologies) if pd.notna(technologies) else "",
+                            "keywords": str(keywords) if pd.notna(keywords) else "",
                         }
 
                         # Generate line with Claude

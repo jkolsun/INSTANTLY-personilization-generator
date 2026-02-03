@@ -83,6 +83,16 @@ COLUMN_MAPPINGS: Dict[str, str] = {
     # Industry
     "industry": "industry",
 
+    # Technologies (Apollo CSV)
+    "technologies": "technologies",
+    "tech stack": "technologies",
+    "tools": "technologies",
+
+    # Keywords/Services (Apollo CSV)
+    "keywords": "keywords",
+    "services": "keywords",
+    "specialties": "keywords",
+
     # Title/Role
     "title": "job_title",
     "job_title": "job_title",
