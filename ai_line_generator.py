@@ -119,6 +119,34 @@ RULES:
             if lead_data.get("keywords"):
                 context_parts.append(f"Services/Specialties: {lead_data['keywords'][:300]}")
 
+            # HIGH VALUE: Annual revenue (shows scale/success)
+            if lead_data.get("annual_revenue"):
+                try:
+                    rev = float(lead_data["annual_revenue"])
+                    if rev >= 1000000:
+                        context_parts.append(f"Annual Revenue: ${rev/1000000:.1f}M+")
+                    elif rev >= 100000:
+                        context_parts.append(f"Annual Revenue: ${rev/1000:.0f}K+")
+                except (ValueError, TypeError):
+                    pass
+
+            # HIGH VALUE: Part of larger company (franchise/subsidiary)
+            if lead_data.get("subsidiary_of"):
+                context_parts.append(f"Part of: {lead_data['subsidiary_of']}")
+
+            # HIGH VALUE: Multiple locations (growth signal)
+            if lead_data.get("num_locations"):
+                try:
+                    num = int(float(lead_data["num_locations"]))
+                    if num > 1:
+                        context_parts.append(f"Number of locations: {num}")
+                except (ValueError, TypeError):
+                    pass
+
+            # Person's title/role
+            if lead_data.get("person_title"):
+                context_parts.append(f"Contact's role: {lead_data['person_title']}")
+
             if lead_data.get("industry"):
                 context_parts.append(f"Industry: {lead_data['industry']}")
             if lead_data.get("location"):

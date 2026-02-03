@@ -942,11 +942,17 @@ def render_csv_personalization_page():
                         except Exception:
                             pass
 
-                        # Build lead data - include Technologies and Keywords from CSV
+                        # Build lead data - include ALL valuable CSV columns
                         technologies = row.get("technologies", "") or row.get("Technologies", "") or ""
                         keywords = row.get("keywords", "") or row.get("Keywords", "") or ""
                         technologies = str(technologies) if pd.notna(technologies) else ""
                         keywords = str(keywords) if pd.notna(keywords) else ""
+
+                        # Get additional high-value fields
+                        annual_revenue = row.get("annual_revenue", "") or row.get("Annual Revenue", "") or ""
+                        title = row.get("job_title", "") or row.get("Title", "") or ""
+                        subsidiary_of = row.get("subsidiary of", "") or row.get("Subsidiary of", "") or ""
+                        num_locations = row.get("number of retail locations", "") or row.get("Number of Retail Locations", "") or ""
 
                         lead_data = {
                             "company_description": row.get("company_description", "") or "",
@@ -954,6 +960,10 @@ def render_csv_personalization_page():
                             "location": location,
                             "technologies": technologies,
                             "keywords": keywords,
+                            "annual_revenue": str(annual_revenue) if pd.notna(annual_revenue) else "",
+                            "person_title": str(title) if pd.notna(title) else "",
+                            "subsidiary_of": str(subsidiary_of) if pd.notna(subsidiary_of) else "",
+                            "num_locations": str(num_locations) if pd.notna(num_locations) else "",
                         }
 
                         # Use Claude with ALL available data
