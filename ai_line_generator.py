@@ -6,11 +6,16 @@ Replaces rigid templates with intelligent, context-aware line generation.
 import logging
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 import anthropic
 
+from line_quality_validator import LineQualityValidator, ValidationResult
+
 logger = logging.getLogger(__name__)
+
+# Initialize the quality validator
+quality_validator = LineQualityValidator()
 
 
 @dataclass
@@ -39,44 +44,74 @@ class AILineGenerator:
     Uses Claude Haiku for fast, cost-effective generation.
     """
 
-    SYSTEM_PROMPT = """You write cold email openers that make business owners WANT to open the email. Your goal: stroke their ego and create curiosity.
+    SYSTEM_PROMPT = """You write cold email openers that psychologically compel business owners to open the email.
 
-POWERFUL HOOKS BY DATA TYPE:
+PSYCHOLOGY OF WHAT WORKS:
+1. EGO - Make them feel like a success story others admire
+2. CURIOSITY - Create an open loop they need to close
+3. SPECIFICITY - Exact numbers/details prove you did research
+4. EXCLUSIVITY - They're in a small % who achieved this
+5. VALIDATION - Someone noticed their hard work
 
-REVENUE ($2M+):
-- "Building a $2M+ plumbing operation in this market tells me you've figured something out."
-- "Scaling past $2M in revenue while most plumbers stay stuck — that caught my attention."
+===== S-TIER HOOKS (Use if data available) =====
 
-REVIEWS/RATINGS (4.5+ stars, 100+ reviews):
-- "Your 4.8-star rating across 200+ reviews means you're doing something 90% of plumbers aren't."
-- "150 five-star reviews don't happen by accident — you've clearly built something special."
+AWARDS/RECOGNITION:
+- "Best of Phoenix 2024 winner — that's a title most never earn."
+- "Seeing you ranked #1 in Austin for plumbing, I had to reach out."
 
-YEARS IN BUSINESS (10+ years):
-- "Surviving 25 years in plumbing while others come and go? That's earned respect."
-- "Building a business that's thrived since 1998 takes serious operational discipline."
+VOLUME/SCALE (Jobs, Customers):
+- "10,000 jobs completed means you've built real operational systems."
+- "Serving 5,000+ homeowners tells me you've cracked customer acquisition."
 
-TECH STACK (Freshdesk, ServiceTitan, etc.):
-- "The Freshdesk setup tells me you're more sophisticated than most in your industry."
-- "Running ServiceTitan for dispatching puts you ahead of 95% of your competitors."
+MEDIA/PRESS:
+- "Caught your feature on Channel 5 — not many contractors get that visibility."
+- "Your interview on the Trade Secrets podcast stood out."
 
-MULTIPLE LOCATIONS / EXPANSION:
-- "Growing to 3 locations in this economy? Most can't even keep one running."
-- "Expanding while others are contracting — that takes confidence and cash flow."
+REVIEWS/RATINGS (with specific numbers):
+- "Your 4.9 stars across 300+ reviews? That's rare — most hover at 4.2."
+- "287 five-star reviews don't happen by accident."
 
-SPECIFIC SERVICES / NICHE:
-- "Specializing in tankless water heaters while everyone else does everything — smart positioning."
-- "Your focus on commercial plumbing sets you apart from the residential-only crowd."
+===== A-TIER HOOKS =====
 
-FRANCHISE / SUBSIDIARY:
-- "Being part of Threshold Brands gives you scale most independents can't match."
+YEARS IN BUSINESS:
+- "Still thriving after 30 years when most don't make it past 5? That's serious."
+- "Building since 1992 puts you in rare company."
 
-RULES:
-- Make them feel IMPRESSIVE and SUCCESSFUL
-- Be specific - the more specific, the more they'll open
-- 12-20 words, COMPLETE sentences only
-- Sound human and genuine, not salesy
-- NEVER invent details - only use what's in the data
-- ALWAYS write complete sentences - never leave words missing at the end"""
+FAMILY/ORIGIN STORY:
+- "Third-generation family business — that legacy means something."
+- "Family-owned since '85 tells me this isn't just a job for you."
+
+GROWTH SIGNALS (Hiring, Expanding):
+- "Hiring technicians while others are cutting back — smart timing."
+- "Growing to 4 locations in this economy takes real confidence."
+
+TECH/SOPHISTICATION:
+- "ServiceTitan for dispatch and Podium for reviews — you're running this like a real business."
+- "The HubSpot integration tells me you think differently than most."
+
+FLEET/TEAM SIZE:
+- "25 trucks on the road means you've built something substantial."
+- "A team of 40 technicians isn't built overnight."
+
+===== B-TIER HOOKS (Only if no A/S data) =====
+
+NICHE/SPECIALTY:
+- "Specializing only in tankless water heaters — smart positioning."
+- "Going all-in on commercial while others chase residential scraps."
+
+CERTIFICATIONS:
+- "Carrier Factory Authorized — they don't give that to everyone."
+- "Rheem Pro Partner puts you in the top tier."
+
+WARRANTY/GUARANTEE:
+- "Lifetime warranty on labor? That's confidence most don't have."
+
+===== ABSOLUTE RULES =====
+- 12-20 words, COMPLETE SENTENCES ONLY
+- Use EXACT numbers/names from data (4.9 stars, 287 reviews, since 1992)
+- Sound like a human who genuinely noticed something impressive
+- NEVER invent facts — only use what's in the research data
+- NEVER use: recently, just, new, exciting, impressive, amazing, innovative, incredible"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -177,76 +212,90 @@ RULES:
 
         prompt = self._build_prompt(company_name, context)
 
-        try:
-            logger.info(f"Calling Claude API with model={self.model} for {company_name}")
-            logger.info(f"Context being sent to Claude:\n{context[:500]}...")
+        # Retry loop with quality validation
+        max_attempts = 3
+        last_issues: List[str] = []
 
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=500,  # Increased to prevent any truncation
-                system=self.SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
-            )
+        for attempt in range(max_attempts):
+            try:
+                logger.info(f"Calling Claude API (attempt {attempt + 1}/{max_attempts}) for {company_name}")
+                if attempt == 0:
+                    logger.info(f"Context being sent to Claude:\n{context[:500]}...")
 
-            raw_response = response.content[0].text
-            logger.info(f"Claude API SUCCESS for {company_name}")
-            logger.info(f"Claude raw response:\n{raw_response}")
-            result = self._parse_response(raw_response)
-
-            # Validate and clean the output
-            result = self._validate_and_clean(result, company_name)
-
-            # If Claude returned generic fallback but we have location, use location-based line
-            if result.line.lower().strip().rstrip('.') == "came across your company online":
-                location = lead_data.get("location") if lead_data else None
-                if location and location.strip():
-                    result = AIGeneratedLine(
-                        line=f"Noticed your team serves {location}.",
-                        confidence_tier="B",
-                        artifact_type="LOCATION",
-                        artifact_used=location,
-                        reasoning="Using location-based fallback",
+                # Build messages with retry feedback if applicable
+                messages = [{"role": "user", "content": prompt}]
+                if attempt > 0 and last_issues:
+                    retry_feedback = (
+                        f"\n\nYour previous attempt failed validation: {', '.join(last_issues)}. "
+                        f"Please write a NEW complete sentence (12-20 words) that avoids these issues."
                     )
+                    messages = [{"role": "user", "content": prompt + retry_feedback}]
 
-            return result
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=500,
+                    system=self.SYSTEM_PROMPT,
+                    messages=messages,
+                )
 
-        except anthropic.APIStatusError as e:
-            # Specific API status errors (401, 403, 404, 429, 500, etc.)
-            logger.error(f"Claude API Status Error: status={e.status_code}, message={e.message}")
+                raw_response = response.content[0].text
+                logger.info(f"Claude API SUCCESS for {company_name}")
+                logger.info(f"Claude raw response:\n{raw_response}")
+                result = self._parse_response(raw_response)
+
+                # Validate and clean the output
+                result = self._validate_and_clean(result, company_name)
+
+                # Run through quality validator
+                validation = quality_validator.validate(result.line, company_name)
+                logger.info(f"Quality validation: valid={validation.is_valid}, score={validation.quality_score}, issues={validation.issues}")
+
+                if validation.is_valid:
+                    # Passed validation - return the result
+                    logger.info(f"Line passed validation on attempt {attempt + 1}")
+                    return result
+                else:
+                    # Failed validation - store issues for retry
+                    last_issues = validation.issues
+                    logger.warning(f"Line failed validation (attempt {attempt + 1}): {validation.issues}")
+
+                    if validation.suggested_action == "fallback":
+                        # Don't retry, go straight to fallback
+                        break
+
+            except anthropic.APIStatusError as e:
+                logger.error(f"Claude API Status Error: status={e.status_code}, message={e.message}")
+                last_issues = [f"API error: {e.status_code}"]
+            except anthropic.APIConnectionError as e:
+                logger.error(f"Claude API Connection Error: {e}")
+                last_issues = ["Connection error"]
+            except anthropic.APIError as e:
+                logger.error(f"Claude API error: {e}")
+                last_issues = [f"API error: {str(e)[:50]}"]
+            except Exception as e:
+                logger.error(f"Unexpected error: {type(e).__name__}: {e}")
+                last_issues = [f"{type(e).__name__}"]
+
+        # All attempts failed - use fallback
+        logger.warning(f"All {max_attempts} attempts failed for {company_name}, using fallback")
+        location = lead_data.get("location") if lead_data else None
+        if location and location.strip():
             return AIGeneratedLine(
-                line="Came across your company online.",
+                line=f"Noticed your team serves {location}.",
                 confidence_tier="B",
-                artifact_type="API_ERROR",
-                artifact_used=f"HTTP {e.status_code}",
-                reasoning=f"CLAUDE HTTP {e.status_code}: {e.message[:80]}",
+                artifact_type="LOCATION",
+                artifact_used=location,
+                reasoning=f"Fallback after {max_attempts} failed attempts: {', '.join(last_issues)}",
             )
-        except anthropic.APIConnectionError as e:
-            logger.error(f"Claude API Connection Error: {e}")
-            return AIGeneratedLine(
-                line="Came across your company online.",
-                confidence_tier="B",
-                artifact_type="CONNECTION_ERROR",
-                artifact_used="Connection failed",
-                reasoning=f"CONNECTION ERROR: {str(e)[:80]}",
-            )
-        except anthropic.APIError as e:
-            logger.error(f"Claude API error: {e}")
-            return AIGeneratedLine(
-                line="Came across your company online.",
-                confidence_tier="B",
-                artifact_type="API_ERROR",
-                artifact_used=str(e)[:100],
-                reasoning=f"CLAUDE API FAILED: {str(e)[:100]}",
-            )
-        except Exception as e:
-            logger.error(f"Unexpected error in Claude generation: {type(e).__name__}: {e}")
-            return AIGeneratedLine(
-                line="Came across your company online.",
-                confidence_tier="B",
-                artifact_type="UNEXPECTED_ERROR",
-                artifact_used=f"{type(e).__name__}",
-                reasoning=f"{type(e).__name__}: {str(e)[:80]}",
-            )
+
+        # Final fallback - generic line
+        return AIGeneratedLine(
+            line="Came across your company online.",
+            confidence_tier="B",
+            artifact_type="FALLBACK",
+            artifact_used="",
+            reasoning=f"All {max_attempts} generation attempts failed",
+        )
 
     def _build_prompt(self, company_name: str, context: str) -> str:
         """Build the prompt for Claude."""
@@ -256,29 +305,39 @@ RULES:
 {context}
 === END RESEARCH ===
 
-Write ONE cold email opener that makes the owner of {company_name} feel IMPRESSIVE and want to read more.
+Write ONE cold email opener for {company_name} that triggers CURIOSITY and EGO.
 
-PRIORITY (use the first one you find):
-1. Annual Revenue ($2M+) — "Building a $2M+ operation tells me you've figured something out."
-2. Reviews/Ratings — "Your 4.8 stars across 150+ reviews means you're doing something right."
-3. Years in Business — "25 years in plumbing while others come and go? That's earned respect."
-4. Tech Stack — "Running Freshdesk tells me you're more sophisticated than most."
-5. Multiple Locations — "Growing to 3 locations in this economy takes serious confidence."
-6. Specific Services — "Specializing in tankless installs while others do everything — smart."
-7. Location — Only if nothing else!
+SCAN THE DATA FOR (in priority order):
+S-TIER (if found, use immediately):
+- Awards/Rankings ("Best of...", "#1 in...", "Top 10...")
+- Volume metrics (10,000 jobs, 5,000 customers)
+- Media/Press mentions (TV, podcasts, news)
+- Reviews with specific numbers (4.9 stars, 287 reviews)
 
-BAD (will get deleted):
-- "Noticed your team serves Denver."
-- "I saw you offer plumbing services."
-- Generic anything.
+A-TIER:
+- Years in business (since 1985, 30 years)
+- Family story (3rd generation, family-owned)
+- Growth signals (hiring, expanding, new location)
+- Tech stack (ServiceTitan, HubSpot)
+- Team/Fleet size (25 trucks, 40 technicians)
 
-Find the MOST IMPRESSIVE detail and make it sound noteworthy.
+B-TIER (only if nothing above):
+- Specialty/niche focus
+- Certifications (Carrier, Rheem)
+- Warranty/guarantees
 
-Reply:
-LINE: [your 12-20 word ego-stroking opener]
-TIER: [S/A/B]
-TYPE: [REVENUE/REVIEWS/YEARS/TOOL/SERVICE/LOCATION]
-ARTIFACT: [the specific detail you used]"""
+NEVER USE:
+- Location alone ("Noticed you serve Denver")
+- Generic services ("I saw you do plumbing")
+- Vague praise ("Great company")
+
+CRITICAL: Use EXACT numbers and names from the data. "4.9 stars" not "high rating". "Since 1992" not "many years".
+
+Reply format:
+LINE: [Complete 12-20 word opener that would make YOU want to respond]
+TIER: [S/A/B based on data quality used]
+TYPE: [AWARD/SCALE/MEDIA/REVIEWS/YEARS/STORY/GROWTH/TECH/TEAM/SPECIALTY/CERT]
+ARTIFACT: [exact data point used, e.g., "4.9 stars, 287 reviews"]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
