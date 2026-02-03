@@ -209,7 +209,7 @@ def get_company_name(row: pd.Series) -> Optional[str]:
         Company name or None
     """
     # Check normalized name first, then common variants as fallback
-    return get_value(
+    result = get_value(
         row,
         "company_name",
         "companyname",
@@ -222,6 +222,22 @@ def get_company_name(row: pd.Series) -> Optional[str]:
         "account_name",
         "business_name",
     )
+
+    if result:
+        return result
+
+    # Fallback: check for any column containing "company" (case-insensitive)
+    # This handles cases where normalization might not have worked
+    for col in row.index:
+        col_lower = col.lower()
+        if "company" in col_lower and "linkedin" not in col_lower and "phone" not in col_lower:
+            val = row[col]
+            if val is not None and pd.notna(val):
+                str_val = str(val).strip()
+                if str_val and str_val.lower() not in ["unknown", "n/a", "na", "none", "-"]:
+                    return str_val
+
+    return None
 
 
 def get_company_description(row: pd.Series) -> Optional[str]:

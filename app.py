@@ -926,12 +926,21 @@ def render_csv_personalization_page():
                 results_log = []
                 results_data = []
 
+                # Debug: show first row columns
+                first_row = rows_to_process.iloc[0]
+                st.write("**DEBUG - First row columns:**", list(first_row.index)[:10])
+                st.write("**DEBUG - Looking for company in:**", [c for c in first_row.index if "company" in c.lower()])
+
                 for idx, (row_idx, row) in enumerate(rows_to_process.iterrows()):
                     try:
                         company_name = get_company_name(row) or "Unknown"
                         domain = get_site_url(row) or ""
                         location = get_location(row) or ""
                         email = row.get("email", "") or ""
+
+                        # Debug first 3 rows
+                        if idx < 3:
+                            st.write(f"**DEBUG Row {idx}:** company={company_name}, domain={domain[:30] if domain else 'None'}")
 
                         status_text.markdown(f"**Processing:** {company_name} ({idx + 1}/{total})")
 
