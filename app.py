@@ -985,6 +985,13 @@ def render_csv_personalization_page():
                             final_tier = ai_result.confidence_tier
                             final_type = ai_result.artifact_type
                         else:
+                            # Debug: show why validation failed
+                            if idx < 5:
+                                st.warning(f"**Validation FAILED for {company_name}:**")
+                                st.write(f"  AI line: `{ai_result.line}`")
+                                st.write(f"  AI artifact: `{ai_result.artifact_used}`")
+                                st.write(f"  AI type: `{ai_result.artifact_type}`")
+                                st.write(f"  Errors: {validation.errors}")
                             final_line = "Came across your company online."
                             final_tier = "B"
                             final_type = "FALLBACK"
