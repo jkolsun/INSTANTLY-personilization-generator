@@ -41,33 +41,41 @@ class AILineGenerator:
 
     SYSTEM_PROMPT = """You write cold email openers that make business owners WANT to open the email. Your goal: stroke their ego and create curiosity.
 
-WHAT MAKES THEM OPEN:
-- Feeling like someone actually researched their business
-- Seeing something impressive about THEM recognized
-- Curiosity about why you're reaching out
-- Pattern interrupt - not the usual "I noticed your company..."
+POWERFUL HOOKS BY DATA TYPE:
 
-GREAT OPENERS (study these patterns):
-- "Your 4.8-star rating across 150+ reviews tells me you're doing something most plumbers aren't."
-- "The fact that you're still doing 24/7 emergency calls in Denver sets you apart."
-- "Building a plumbing business with multiple service trucks in this economy? That caught my attention."
-- "Your focus on tankless water heaters when everyone else does everything — smart positioning."
-- "Saw your team handles both residential and commercial in Nashville — that's a tough combo to nail."
-- "The Freshdesk setup tells me you're serious about customer service — rare in this industry."
+REVENUE ($2M+):
+- "Building a $2M+ plumbing operation in this market tells me you've figured something out."
+- "Scaling past $2M in revenue while most plumbers stay stuck — that caught my attention."
 
-WHAT TO LOOK FOR:
-1. Google reviews / ratings (social proof)
-2. Specific services they specialize in (positioning)
-3. Years in business / growth signals
-4. Tech stack that shows sophistication
-5. Geographic coverage / expansion
+REVIEWS/RATINGS (4.5+ stars, 100+ reviews):
+- "Your 4.8-star rating across 200+ reviews means you're doing something 90% of plumbers aren't."
+- "150 five-star reviews don't happen by accident — you've clearly built something special."
+
+YEARS IN BUSINESS (10+ years):
+- "Surviving 25 years in plumbing while others come and go? That's earned respect."
+- "Building a business that's thrived since 1998 takes serious operational discipline."
+
+TECH STACK (Freshdesk, ServiceTitan, etc.):
+- "The Freshdesk setup tells me you're more sophisticated than most in your industry."
+- "Running ServiceTitan for dispatching puts you ahead of 95% of your competitors."
+
+MULTIPLE LOCATIONS / EXPANSION:
+- "Growing to 3 locations in this economy? Most can't even keep one running."
+- "Expanding while others are contracting — that takes confidence and cash flow."
+
+SPECIFIC SERVICES / NICHE:
+- "Specializing in tankless water heaters while everyone else does everything — smart positioning."
+- "Your focus on commercial plumbing sets you apart from the residential-only crowd."
+
+FRANCHISE / SUBSIDIARY:
+- "Being part of Threshold Brands gives you scale most independents can't match."
 
 RULES:
-- Make them feel SEEN and IMPRESSIVE
-- Be specific - generic = delete
+- Make them feel IMPRESSIVE and SUCCESSFUL
+- Be specific - the more specific, the more they'll open
 - 12-20 words
-- Sound like a human, not a template
-- NEVER invent details"""
+- Sound human and genuine, not salesy
+- NEVER invent details - only use what's in the data"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -247,27 +255,29 @@ RULES:
 {context}
 === END RESEARCH ===
 
-Write ONE cold email opener that will make the owner of {company_name} actually want to read more.
+Write ONE cold email opener that makes the owner of {company_name} feel IMPRESSIVE and want to read more.
 
-YOUR GOAL: Make them feel impressive. Find something specific and frame it as noteworthy.
+PRIORITY (use the first one you find):
+1. Annual Revenue ($2M+) — "Building a $2M+ operation tells me you've figured something out."
+2. Reviews/Ratings — "Your 4.8 stars across 150+ reviews means you're doing something right."
+3. Years in Business — "25 years in plumbing while others come and go? That's earned respect."
+4. Tech Stack — "Running Freshdesk tells me you're more sophisticated than most."
+5. Multiple Locations — "Growing to 3 locations in this economy takes serious confidence."
+6. Specific Services — "Specializing in tankless installs while others do everything — smart."
+7. Location — Only if nothing else!
 
-GOOD (makes them feel seen):
-- "Running a plumbing operation with Freshdesk for support? That's more sophisticated than 90% of your competitors."
-- "Your drain cleaning specialty in a sea of generalist plumbers — smart way to stand out in Portland."
-- "Scaling to handle both residential and commercial jobs is no small feat in this market."
-
-BAD (boring, will get deleted):
+BAD (will get deleted):
 - "Noticed your team serves Denver."
 - "I saw you offer plumbing services."
-- "Your company caught my attention."
+- Generic anything.
 
-Find the MOST SPECIFIC detail and make it sound impressive.
+Find the MOST IMPRESSIVE detail and make it sound noteworthy.
 
 Reply:
-LINE: [12-20 word opener that makes them feel seen]
+LINE: [your 12-20 word ego-stroking opener]
 TIER: [S/A/B]
-TYPE: [TOOL/SERVICE/ACHIEVEMENT/LOCATION]
-ARTIFACT: [specific detail used]"""
+TYPE: [REVENUE/REVIEWS/YEARS/TOOL/SERVICE/LOCATION]
+ARTIFACT: [the specific detail you used]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
