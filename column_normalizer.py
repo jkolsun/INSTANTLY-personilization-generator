@@ -24,14 +24,21 @@ COLUMN_MAPPINGS: Dict[str, str] = {
     "company": "company_name",
     "company_name": "company_name",
     "companyname": "company_name",
+    "company name": "company_name",  # Common export format
+    "name": "company_name",  # Generic
     "organization": "company_name",
     "organization name": "company_name",  # Apollo
     "organization_name": "company_name",  # Apollo
     "org": "company_name",
+    "org name": "company_name",
     "business": "company_name",
     "business_name": "company_name",
+    "business name": "company_name",
+    "account": "company_name",
     "account name": "company_name",  # Salesforce
     "account_name": "company_name",
+    "lead company": "company_name",
+    "employer": "company_name",
 
     # First name
     "first_name": "first_name",
@@ -201,7 +208,20 @@ def get_company_name(row: pd.Series) -> Optional[str]:
     Returns:
         Company name or None
     """
-    return get_value(row, "company_name", "companyname")
+    # Check normalized name first, then common variants as fallback
+    return get_value(
+        row,
+        "company_name",
+        "companyname",
+        "company",
+        "company name",
+        "organization name",
+        "organization_name",
+        "name",
+        "account name",
+        "account_name",
+        "business_name",
+    )
 
 
 def get_company_description(row: pd.Series) -> Optional[str]:
