@@ -939,10 +939,6 @@ def render_csv_personalization_page():
                         try:
                             company_info = serper.get_company_info(company_name, domain, location)
                             serper_description = extract_artifacts_from_serper(company_info)
-
-                            # Check confidence
-                            if company_info.is_low_confidence or company_info.industry_mismatch_detected:
-                                serper_description = ""
                         except Exception:
                             pass
 

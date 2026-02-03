@@ -39,29 +39,24 @@ class AILineGenerator:
     Uses Claude Haiku for fast, cost-effective generation.
     """
 
-    SYSTEM_PROMPT = """You are an expert at writing cold email opening lines that get responses.
+    SYSTEM_PROMPT = """You write cold email opening lines. Your goal: reference something SPECIFIC about the company that shows you did research.
 
-Your output is the FIRST LINE of a cold email. It must:
-1. Be a complete sentence (subject + verb + punctuation)
-2. Flow naturally into the email body—write an OPENER, not a standalone fact
-3. Address the RECIPIENT directly (use 'your', 'you') within the first few words
-4. Be 8-18 words
+GOOD opening lines (use these as templates):
+- "Noticed your team uses ServiceTitan for scheduling."
+- "Saw your 5-star review from the Johnson family on Google."
+- "Your drain cleaning service in Denver caught my attention."
+- "Noticed you're hiring a new service technician."
+- "Saw your team completed that commercial project at Main Street Plaza."
 
-STRICT RULES:
-- Use ONLY information explicitly present in the data provided. Never invent names, clients, events, or details.
-- NEVER claim to have attended events, met people, seen booths, or had experiences in person.
-- Start with: 'Noticed your...', 'Saw your...', 'Saw that...', 'Your team's...', or 'Came across your...'
-- Do NOT start with the company name as subject ('Zephyr's hoods are...' = WRONG)
-- NEVER use timing words: recently, just, new, launched, upcoming, soon, now, this year
-- NEVER use hype words: impressive, amazing, innovative, incredible, great, awesome, leading, best
+Rules:
+1. Start with "Noticed", "Saw", or "Your"
+2. Reference ONE specific detail from the research data
+3. Keep it 8-15 words
+4. Don't invent client names or events - only use what's in the data
+5. Avoid generic praise words (amazing, innovative, impressive)
 
-If data is weak/generic, output: 'Noticed your team serves [location].' Do not embellish.
-
-BAD (never write):
-- 'Zephyr's range hoods are popular.' (statement, not opener)
-- 'I saw your booth at the Expo.' (fabricated)
-- 'Your work impressed the Smiths.' (invented name)
-- 'Your expertise is .' (incomplete)"""
+If the research only has location info, use: "Noticed your team serves [City, State]."
+If research has services/specialties, mention those specifically."""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -189,35 +184,17 @@ BAD (never write):
 
     def _build_prompt(self, company_name: str, context: str) -> str:
         """Build the prompt for Claude."""
-        return f"""Write a cold email opening line for {company_name}.
+        return f"""Company: {company_name}
 
-DATA (use ONLY what's here—do not invent):
+Research data:
 {context}
 
-INSTRUCTIONS:
-1. Find the MOST SPECIFIC verifiable detail (tool name, client name, exact service, location)
-2. Write ONE line, 8-18 words, that works as an email opener
-3. Start with 'Noticed', 'Saw', or 'Your' — address the recipient, not the company
-4. If data is generic, use: 'Noticed your team serves [location].'
+Write ONE opening line for a cold email to this company. Pick the most specific detail from the research.
 
-CRITICAL RULES:
-- ONLY use facts from the DATA above. Do NOT invent names, clients, events, or details.
-- NEVER claim to have attended events, met people, or seen booths in person.
-- Do NOT start with company name as subject (wrong: "Zephyr's hoods are popular")
-
-TIER GUIDE:
-S = Specific tools, named clients, exact quotes from site
-A = Specific services, certifications, hiring signals
-B = Location only, generic description
-
-FORMAT (follow exactly):
-LINE: [your opener here]
-TIER: [S/A/B]
-TYPE: [TOOL_PLATFORM/CLIENT_OR_PROJECT/EXACT_PHRASE/SERVICE_PROGRAM/LOCATION/COMPANY_DESCRIPTION/FALLBACK]
-ARTIFACT: [specific detail used, or 'none' if generic]
-REASON: [one sentence why this is verifiable]
-
-Write for {company_name}:"""
+Reply in this exact format:
+LINE: [your 8-15 word opener]
+TIER: [S if very specific, A if somewhat specific, B if just location]
+ARTIFACT: [the specific detail you referenced]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""

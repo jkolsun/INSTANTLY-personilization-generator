@@ -1,0 +1,1073 @@
+{
+  "document_purpose": "Comprehensive diagnosis and fix instructions for Instantly Personalization Generator",
+  "prepared_for": "Jared & Andrew (Developers)",
+  "prepared_by": "Andrew via Claude analysis + Claude Code review",
+  "date": "2025-02-02",
+  "version": "3.0",
+  "context": "Zero real replies across 4,133 leads. Personalization quality issues identified as contributing factor. This document covers generation, validation, AND Serper disambiguation fixes.",
+
+  "section_1_diagnosis": {
+    "what_is_working": [
+      "S-tier artifact extraction (exact phrases, specific clients, tools/platforms)",
+      "Confidence tier tracking and hierarchy",
+      "Evidence sourcing documented (claude_ai+serper)",
+      "Basic validator catching some banned words",
+      "Two-stage validation architecture (artifacts before, lines after)",
+      "Word count ceiling (max 18 words)",
+      "Artifact stacking prevention"
+    ],
+    "what_is_broken": {
+      "serper_disambiguation_issues": {
+        "severity": "CRITICAL",
+        "problem": "Serper search queries are not disambiguated—returns wrong company data",
+        "current_behavior": "Searches company name only with broken OR logic",
+        "current_query_code": "f'\"{clean_name}\" OR site:{domain}' — the OR means either matches, not both",
+        "examples_from_csv": [
+          {
+            "company_in_csv": "Chorbie",
+            "expected_industry": "HVAC",
+            "serper_returned": "Lawn care company in DFW",
+            "personalization_output": "Saw Chorbie is a Square-powered lawn care pro in the DFW area.",
+            "outcome": "Wrong company, wrong industry, recipient confused or ignores"
+          },
+          {
+            "company_in_csv": "EK Automation",
+            "expected_industry": "HVAC",
+            "serper_returned": "Robotics company (ek robotics)",
+            "personalization_output": "Noticed your brand identity as ek robotics - how's the transition going?",
+            "outcome": "Completely wrong company"
+          },
+          {
+            "company_in_csv": "Green Mountain Solar",
+            "expected_industry": "HVAC",
+            "serper_returned": "Solar installation company",
+            "personalization_output": "Saw your community solar installations around Vermont - nice work!",
+            "outcome": "Wrong industry"
+          }
+        ],
+        "root_cause": "Serper query uses OR operator and lacks location context"
+      },
+      "generation_issues": [
+        {
+          "issue": "Statements instead of openers",
+          "severity": "CRITICAL",
+          "description": "Lines are grammatically correct facts but don't flow into email body",
+          "examples_from_csv": [
+            "Zephyr's range hoods are a popular choice for chefs.",
+            "Your 4.9-star Provo, UT HVAC & plumbing team.",
+            "Your filtration products keep manufacturing facilities running smoothly."
+          ],
+          "why_validator_misses": "Validator checks format, not functional quality as an email opener"
+        },
+        {
+          "issue": "Fabricated claims (hallucinations)",
+          "severity": "CRITICAL",
+          "description": "Claude invents plausible-sounding details not present in source data",
+          "examples_from_csv": [
+            "Saw your Bloomington branch expanded HVAC parts inventory.",
+            "Your team's expert HVAC service at Dilling impressed the Smiths.",
+            "I saw Airgle's medical-grade air purifiers at the ASHRAE Expo."
+          ],
+          "why_validator_misses": "No hallucination detection—validator checks format, not factual accuracy"
+        },
+        {
+          "issue": "Incomplete sentences",
+          "severity": "HIGH",
+          "description": "Lines cut off or missing components",
+          "examples_from_csv": [
+            "Your expertise with construction, remodel, and maintenance projects is .",
+            "Your 4.9-star Provo, UT HVAC & plumbing team."
+          ],
+          "why_validator_misses": "No sentence completeness check beyond word count"
+        },
+        {
+          "issue": "Unverifiable first-person claims",
+          "severity": "CRITICAL",
+          "description": "Claude claims experiences it cannot have had—recipient knows immediately it's fake",
+          "examples_from_csv": [
+            "I saw Airgle's medical-grade air purifiers at the ASHRAE Expo.",
+            "Saw your team's HVAC work at the Columbus Convention Center.",
+            "I was at the AHR Expo and noticed your booth."
+          ],
+          "why_validator_misses": "No rule against first-person experiential claims"
+        },
+        {
+          "issue": "Company as subject (not recipient-focused)",
+          "severity": "MEDIUM",
+          "description": "Lines talk ABOUT the company instead of TO the recipient",
+          "examples": [
+            "Zephyr's range hoods are a popular choice.",
+            "Cooper Mechanical has served Bucks County for 90 years.",
+            "Airgle provides medical-grade purifiers."
+          ],
+          "why_validator_misses": "No check for recipient-focused framing"
+        }
+      ],
+      "template_issues": {
+        "file": "config.py lines 195-240",
+        "problems": [
+          {
+            "template": "Impressive work on {artifact_text}.",
+            "problem": "Contains banned hype word 'Impressive'"
+          },
+          {
+            "template": "Great line on your site about {artifact_text}",
+            "problem": "Contains banned hype word 'Great'"
+          },
+          {
+            "template": "Your company caught my attention.",
+            "problem": "Generic fallback—no value, sounds like spam"
+          },
+          {
+            "template": "Found your site and wanted to connect.",
+            "problem": "Generic fallback—no value, sounds like spam"
+          }
+        ]
+      },
+      "prompt_issues": {
+        "file": "ai_line_generator.py lines 42-54 and 168-193",
+        "problems": [
+          "No explicit instruction that output must work as an email opener",
+          "No prohibition on first-person experiential claims",
+          "No requirement to use ONLY data present in Serper results",
+          "No sentence completeness requirement",
+          "No approved opener patterns specified",
+          "No anti-pattern examples showing what NOT to generate",
+          "Word count instruction says 8-12 but should match validator's 8-18"
+        ]
+      },
+      "validator_gaps": [
+        {
+          "gap": "No placeholder detection",
+          "description": "Won't catch if {company_name} accidentally remains in output"
+        },
+        {
+          "gap": "No minimum word floor",
+          "description": "Spec says 8-18 words but only ceiling (18) is enforced. Fragments slip through."
+        },
+        {
+          "gap": "Missing timing words",
+          "description": "Need to add: 'upcoming', 'soon', 'now', 'this year', 'this month', 'this week', 'today'"
+        },
+        {
+          "gap": "Missing hype words",
+          "description": "Need to add: 'revolutionary', 'game-changing', 'cutting-edge', 'world-class', 'industry-leading', 'best-in-class', 'unparalleled', 'exceptional', 'top-notch', 'premier'"
+        },
+        {
+          "gap": "Substring false positives in generic_patterns",
+          "description": "Uses 'in' operator so 'we provide' rejects 'we provide Carrier HVAC systems' (specific + good)"
+        },
+        {
+          "gap": "No first-person experiential claim detection",
+          "description": "Doesn't catch 'I saw at the Expo', 'I attended', 'I met'"
+        },
+        {
+          "gap": "No sentence completeness check",
+          "description": "Doesn't catch 'Your expertise is .' or noun-phrase fragments"
+        },
+        {
+          "gap": "No opener pattern enforcement",
+          "description": "Doesn't verify line works as an opener vs standalone statement"
+        },
+        {
+          "gap": "No company name mismatch detection",
+          "description": "Doesn't verify company name in output matches input (catches wrong Serper results)"
+        }
+      ]
+    }
+  },
+
+  "section_2_root_cause_analysis": {
+    "primary_cause": "Serper queries use broken OR logic and lack disambiguation, returning wrong-company data",
+    "secondary_cause": "Claude prompt in ai_line_generator.py lacks explicit constraints on output format, factual grounding, and opener functionality",
+    "tertiary_cause": "Validator checks format compliance but not functional quality or factual accuracy",
+    "quaternary_cause": "Templates in config.py contain banned words and generic patterns",
+    "contributing_factors": [
+      "Serper query uses OR instead of AND: '\"{name}\" OR site:{domain}' matches either, not both",
+      "Location data available but not passed to Serper query",
+      "No validation that Serper results match expected company/domain",
+      "No explicit instruction that output must transition into email body",
+      "No prohibition on first-person experiential claims",
+      "No requirement to use ONLY data present in Serper results",
+      "No sentence completeness validation",
+      "Serper results trusted without verification layer",
+      "No approved opener patterns to constrain Claude's output format",
+      "No anti-pattern examples to show Claude what to avoid",
+      "Templates not audited against banned word lists"
+    ]
+  },
+
+  "section_3_fix_instructions": {
+    "part_a_serper_disambiguation": {
+      "file_to_modify": "serper_client.py",
+      "current_code_location": "lines 117-120 in get_company_info()",
+      "current_broken_code": "if domain:\n    query = f'\"{clean_name}\" OR site:{domain}'\nelse:\n    query = f'\"{clean_name}\" company'",
+      "fixes": [
+        {
+          "fix_id": "SD-01",
+          "name": "Fix query construction - remove OR, add domain properly",
+          "priority": 1,
+          "current": "f'\"{clean_name}\" OR site:{domain}'",
+          "replacement": "f'\"{clean_name}\" {domain}'",
+          "reason": "OR means either matches. Space = implicit AND in Google, so both must match."
+        },
+        {
+          "fix_id": "SD-02",
+          "name": "Add location parameter to get_company_info()",
+          "priority": 1,
+          "change": "Update method signature to accept location parameter",
+          "new_signature": "def get_company_info(self, company_name: str, domain: Optional[str] = None, location: Optional[str] = None) -> CompanyInfo:",
+          "query_construction": "Build query with all available disambiguation signals"
+        },
+        {
+          "fix_id": "SD-03",
+          "name": "Update app.py to pass location to Serper",
+          "priority": 1,
+          "file": "app.py",
+          "current_line": "company_info = serper.get_company_info(company_name, domain)",
+          "change": "Extract location BEFORE Serper call and pass it"
+        },
+        {
+          "fix_id": "SD-04",
+          "name": "Add domain validation layer",
+          "priority": 2,
+          "description": "After Serper returns, verify at least one result URL contains the expected domain",
+          "action_on_mismatch": "Flag as low confidence, use safe fallback instead of wrong-company data"
+        },
+        {
+          "fix_id": "SD-05",
+          "name": "Add industry mismatch detection",
+          "priority": 2,
+          "description": "If Serper results mention 'lawn care', 'solar', 'robotics' but lead is HVAC, flag/reject",
+          "implementation": "Add WRONG_INDUSTRY_KEYWORDS list, scan snippets before using data"
+        },
+        {
+          "fix_id": "SD-06",
+          "name": "Add result confidence scoring",
+          "priority": 3,
+          "description": "Count how many of 15 results contain expected domain. If <3, treat as low confidence.",
+          "implementation": "Add domain_match_count to CompanyInfo, check before trusting data"
+        }
+      ],
+      "new_query_construction_function": "def build_disambiguated_query(company_name: str, domain: Optional[str] = None, location: Optional[str] = None) -> str:\n    parts = [f'\"{company_name}\"']\n    if domain:\n        parts.append(domain)\n    if location:\n        # Extract city or state\n        city_state = location.split(',')[0].strip() if ',' in location else location\n        if city_state and len(city_state) > 2:\n            parts.append(city_state)\n    return ' '.join(parts)"
+    },
+
+    "part_b_prompt_constraints": {
+      "file_to_modify": "ai_line_generator.py",
+      "current_system_prompt_location": "lines 42-54",
+      "current_build_prompt_location": "lines 168-193",
+      "constraints_to_add": [
+        {
+          "constraint_id": "PC-01",
+          "name": "Opener format requirement",
+          "priority": 1,
+          "rule": "Output must be a complete sentence that transitions naturally into the next line of the email. It should feel like the first line of a paragraph, not a standalone fact.",
+          "implementation": "Add to system prompt: 'Your output is the FIRST LINE of a cold email. It must flow naturally into the email body that follows. Write an OPENER, not a standalone statement or fact.'"
+        },
+        {
+          "constraint_id": "PC-02",
+          "name": "No first-person experiential claims",
+          "priority": 1,
+          "rule": "Prohibit claims that imply the sender personally witnessed, attended, or experienced something",
+          "banned_patterns": [
+            "I saw [anything] at [event/location]",
+            "I was at",
+            "I met",
+            "I attended",
+            "I noticed you just",
+            "at the [Conference/Expo/Summit/Trade Show]",
+            "impressed the [Any Name]",
+            "your booth",
+            "spoke with [name] from your team"
+          ],
+          "implementation": "Add to system prompt: 'NEVER claim to have personally attended events, met people, seen booths, or witnessed things in person. Only reference publicly verifiable information you could find online.'"
+        },
+        {
+          "constraint_id": "PC-03",
+          "name": "Source data grounding (anti-hallucination)",
+          "priority": 1,
+          "rule": "Only use facts explicitly present in the provided data. Do not infer, extrapolate, or invent details.",
+          "implementation": "Add to system prompt: 'Use ONLY information explicitly present in the DATA section below. Do not invent names, specific clients, dates, events, locations, or details not shown. If the data is weak or generic, output a simple safe line instead of fabricating specifics. A boring true line beats an interesting false one.'"
+        },
+        {
+          "constraint_id": "PC-04",
+          "name": "Sentence completeness",
+          "priority": 2,
+          "rule": "Output must be a grammatically complete sentence with subject, verb, and punctuation",
+          "implementation": "Add to system prompt: 'Output must be a grammatically complete sentence ending with a period. Never output fragments, noun phrases, taglines, or incomplete thoughts.'"
+        },
+        {
+          "constraint_id": "PC-05",
+          "name": "Safe fallback instruction",
+          "priority": 2,
+          "rule": "When source data is weak or generic, use a safe fallback instead of fabricating specifics",
+          "implementation": "Add to system prompt: 'If the DATA only contains generic information (just location, basic service type, or boilerplate description), output a simple safe line like \"Noticed your team serves [specific location].\" Do not embellish or invent specifics.'"
+        },
+        {
+          "constraint_id": "PC-06",
+          "name": "Approved opener patterns",
+          "priority": 1,
+          "rule": "Constrain output to proven opener patterns that create sender-recipient connection",
+          "approved_starters": [
+            "Noticed your...",
+            "Noticed that...",
+            "Saw your...",
+            "Saw that...",
+            "Your team's...",
+            "Your [specific thing]...",
+            "Came across your..."
+          ],
+          "banned_starters": [
+            "[Company name] is...",
+            "[Company name] has...",
+            "[Company name] provides...",
+            "[Company name]'s [product] are...",
+            "The [company]...",
+            "As a..."
+          ],
+          "implementation": "Add to system prompt: 'Start your line with one of these patterns: \"Noticed your...\", \"Saw your...\", \"Saw that...\", \"Your team's...\", \"Came across your...\". Do NOT start with the company name as the subject (wrong: \"Zephyr's hoods are popular\"). The line must address the RECIPIENT, not describe the company in third person.'"
+        },
+        {
+          "constraint_id": "PC-07",
+          "name": "Anti-pattern examples",
+          "priority": 2,
+          "rule": "Show Claude explicit examples of what NOT to generate",
+          "implementation": "Add to prompt: 'BAD EXAMPLES (never write like these):\n- \"Zephyr's range hoods are popular with chefs.\" (statement about company, not opener)\n- \"I saw your booth at the ASHRAE Expo.\" (fabricated attendance)\n- \"Your team's work impressed the Smiths.\" (invented names)\n- \"Your expertise in HVAC is .\" (incomplete sentence)\n- \"Industry-leading solutions for your business.\" (hype + tagline)'"
+        },
+        {
+          "constraint_id": "PC-08",
+          "name": "Word count alignment",
+          "priority": 3,
+          "rule": "Match prompt instruction to validator limits",
+          "implementation": "Change '8-12 words' to '8-18 words' in the prompt to match validator ceiling"
+        }
+      ],
+      "new_system_prompt": "You are an expert at writing cold email opening lines that get responses.\n\nYour output is the FIRST LINE of a cold email. It must:\n1. Be a complete sentence (subject + verb + punctuation)\n2. Flow naturally into the email body—write an OPENER, not a standalone fact\n3. Address the RECIPIENT directly (use 'your', 'you') within the first few words\n4. Be 8-18 words\n\nSTRICT RULES:\n- Use ONLY information explicitly present in the data provided. Never invent names, clients, events, or details.\n- NEVER claim to have attended events, met people, seen booths, or had experiences in person.\n- Start with: 'Noticed your...', 'Saw your...', 'Saw that...', 'Your team's...', or 'Came across your...'\n- Do NOT start with the company name as subject ('Zephyr's hoods are...' = WRONG)\n- NEVER use timing words: recently, just, new, launched, upcoming, soon, now, this year\n- NEVER use hype words: impressive, amazing, innovative, incredible, great, awesome, leading, best\n\nIf data is weak/generic, output: 'Noticed your team serves [location].' Do not embellish.\n\nBAD (never write):\n- 'Zephyr's range hoods are popular.' (statement, not opener)\n- 'I saw your booth at the Expo.' (fabricated)\n- 'Your work impressed the Smiths.' (invented name)\n- 'Your expertise is .' (incomplete)",
+      "new_build_prompt": "Write a cold email opening line for {company_name}.\n\nDATA (use ONLY what's here—do not invent):\n{context}\n\nINSTRUCTIONS:\n1. Find the MOST SPECIFIC verifiable detail (tool name, client name, exact service, location)\n2. Write ONE line, 8-18 words, that works as an email opener\n3. Start with 'Noticed', 'Saw', or 'Your' — address the recipient, not the company\n4. If data is generic, use: 'Noticed your team serves [location].'\n\nTIER GUIDE:\nS = Specific tools, named clients, exact quotes from site\nA = Specific services, certifications, hiring signals  \nB = Location only, generic description\n\nFORMAT (follow exactly):\nLINE: [your opener here]\nTIER: [S/A/B]\nTYPE: [TOOL_PLATFORM/CLIENT_OR_PROJECT/EXACT_PHRASE/SERVICE_PROGRAM/LOCATION/COMPANY_DESCRIPTION/FALLBACK]\nARTIFACT: [specific detail used, or 'none' if generic]\nREASON: [one sentence why this is verifiable]\n\nWrite for {company_name}:"
+    },
+
+    "part_c_template_fixes": {
+      "file_to_modify": "config.py",
+      "location": "lines 195-240 (TEMPLATES dict)",
+      "fixes": [
+        {
+          "fix_id": "TF-01",
+          "current": "Impressive work on {artifact_text}.",
+          "replacement": "Noticed your work on {artifact_text}.",
+          "reason": "'Impressive' is a banned hype word"
+        },
+        {
+          "fix_id": "TF-02",
+          "current": "Great line on your site about {artifact_text}",
+          "replacement": "This line on your site stood out: {artifact_text}",
+          "reason": "'Great' is a banned hype word"
+        },
+        {
+          "fix_id": "TF-03",
+          "current": "Your company caught my attention.",
+          "replacement": "Came across your team while researching.",
+          "reason": "Original is generic spam-sounding"
+        },
+        {
+          "fix_id": "TF-04",
+          "current": "Found your site and wanted to connect.",
+          "replacement": "Noticed your team online and wanted to reach out.",
+          "reason": "Original is generic spam-sounding"
+        }
+      ]
+    },
+
+    "part_d_validator_updates": {
+      "files_to_modify": ["validator.py", "config.py"],
+      "updates": [
+        {
+          "update_id": "VU-01",
+          "name": "Placeholder detection",
+          "priority": 2,
+          "file": "validator.py",
+          "rule": "Reject lines containing unreplaced template variables",
+          "patterns_to_catch": [
+            "{company_name}",
+            "{companyName}",
+            "{firstName}",
+            "{first_name}",
+            "{artifact_text}",
+            "{location}",
+            "{{",
+            "}}"
+          ],
+          "implementation": "Add method _contains_placeholder() with regex: r'\\{[^}]+\\}' and call in validate()"
+        },
+        {
+          "update_id": "VU-02",
+          "name": "Minimum word floor",
+          "priority": 2,
+          "file": "validator.py and config.py",
+          "rule": "Reject lines under 8 words (catches fragments)",
+          "implementation": "Add MIN_LINE_WORDS = 8 to config.py, check in validate(): if word_count < MIN_LINE_WORDS"
+        },
+        {
+          "update_id": "VU-03",
+          "name": "Expanded timing words",
+          "priority": 3,
+          "file": "config.py",
+          "rule": "Add missing timing words to banned list",
+          "words_to_add": [
+            "upcoming",
+            "soon",
+            "now",
+            "this year",
+            "this month",
+            "this week",
+            "today",
+            "yesterday",
+            "last week",
+            "last month",
+            "last year"
+          ],
+          "implementation": "Append to BANNED_TIMING_WORDS list"
+        },
+        {
+          "update_id": "VU-04",
+          "name": "Expanded hype words",
+          "priority": 3,
+          "file": "config.py",
+          "rule": "Add missing hype adjectives to banned list",
+          "words_to_add": [
+            "revolutionary",
+            "game-changing",
+            "cutting-edge",
+            "world-class",
+            "industry-leading",
+            "best-in-class",
+            "unparalleled",
+            "exceptional",
+            "top-notch",
+            "premier",
+            "remarkable",
+            "stunning",
+            "superb",
+            "terrific",
+            "tremendous"
+          ],
+          "implementation": "Append to BANNED_HYPE_ADJECTIVES list"
+        },
+        {
+          "update_id": "VU-05",
+          "name": "Fix substring false positives",
+          "priority": 3,
+          "file": "validator.py",
+          "rule": "Only reject if generic pattern is majority of the artifact, not substring",
+          "implementation": "Change _is_generic_artifact() generic_patterns check: only reject if len(text) < len(pattern) * 2 when pattern is found, or use word boundary regex"
+        },
+        {
+          "update_id": "VU-06",
+          "name": "First-person experiential claim detection",
+          "priority": 1,
+          "file": "validator.py",
+          "rule": "Reject lines claiming sender attended events, met people, or witnessed things",
+          "patterns_to_catch": [
+            "I saw .* at the",
+            "I saw .* at your",
+            "I met",
+            "I attended",
+            "I was at",
+            "I stopped by",
+            "I visited",
+            "at the .* Expo",
+            "at the .* Summit",
+            "at the .* Conference",
+            "at the .* Trade Show",
+            "at the .* Convention",
+            "your booth",
+            "impressed the [A-Z][a-z]+s",
+            "spoke with .* from",
+            "talked to .* at"
+          ],
+          "implementation": "Add method _contains_experiential_claim() using regex patterns, call in validate()"
+        },
+        {
+          "update_id": "VU-07",
+          "name": "Sentence completeness check",
+          "priority": 1,
+          "file": "validator.py",
+          "rule": "Reject lines that are fragments or incomplete",
+          "checks": [
+            "Must end with period, question mark, or exclamation",
+            "Must not end with 'is .', 'are .', 'the .', 'a .', 'an .'",
+            "Must not be a noun phrase (no main verb)",
+            "Must have at least one verb (simple check: contains common verbs or verb patterns)"
+          ],
+          "implementation": "Add method _is_complete_sentence() checking: (1) ends with .!?, (2) not ending with dangling pattern, (3) contains verb indicator"
+        },
+        {
+          "update_id": "VU-08",
+          "name": "Opener pattern enforcement",
+          "priority": 2,
+          "file": "validator.py",
+          "rule": "Reject lines that are statements about the company rather than openers to the recipient",
+          "checks": [
+            "Must contain 'your' or 'you' within first 8 words, OR",
+            "Must start with approved opener pattern (Noticed, Saw, Came across)",
+            "Reject if company name is the grammatical subject doing an action"
+          ],
+          "implementation": "Add method _is_valid_opener() checking recipient-focus. Reject patterns like '[Company] is/has/provides/offers...'"
+        },
+        {
+          "update_id": "VU-09",
+          "name": "Company name mismatch detection",
+          "priority": 2,
+          "file": "validator.py",
+          "rule": "If line mentions a specific company name, verify it matches the input company",
+          "implementation": "Add optional company_name param to validate(). If line contains a capitalized multi-word phrase that looks like a company name, check it fuzzy-matches input."
+        }
+      ]
+    }
+  },
+
+  "section_4_output_format_spec": {
+    "description": "What a correct personalization line looks like",
+    "requirements": {
+      "length": "8-18 words (enforced both floor and ceiling)",
+      "structure": "Complete sentence with subject, verb, object/complement",
+      "punctuation": "Ends with period (questions belong in email body, not opener)",
+      "tone": "Observational, factual, professional, conversational",
+      "grounding": "Every specific detail must be traceable to Serper results or CSV data",
+      "flow": "Must work as an opener that transitions into email body, not a standalone fact",
+      "recipient_focus": "Must address recipient ('your', 'you') within first 5-8 words",
+      "no_fabrication": "Zero invented names, events, testimonials, or experiences",
+      "correct_company": "Must reference the CORRECT company from disambiguated Serper data"
+    },
+    "approved_opener_patterns": [
+      "Noticed your [specific thing]...",
+      "Noticed that [verifiable observation]...",
+      "Saw your [specific thing]...",
+      "Saw that [verifiable observation]...",
+      "Your team's [specific thing]...",
+      "Your [specific service/product]...",
+      "Came across your [specific thing]..."
+    ],
+    "banned_opener_patterns": [
+      "[Company name] is/are/has/have/provides...",
+      "[Company name]'s [product] is/are...",
+      "The [company]...",
+      "As a [industry] company...",
+      "I saw [anything] at [event]...",
+      "I met/attended/visited...",
+      "[Generic statement]."
+    ],
+    "correct_format_examples": [
+      {
+        "line": "Noticed your team handles commercial HVAC for the Columbus Convention Center.",
+        "why_correct": "Specific verifiable client. 'Noticed your' = opener pattern. Addresses recipient. Invites follow-up.",
+        "artifact_source": "Serper result mentioning Columbus Convention Center project"
+      },
+      {
+        "line": "Saw that your team uses ServiceTitan for dispatch.",
+        "why_correct": "Specific tool reference. Verifiable from website/job posting. Recipient-focused.",
+        "artifact_source": "Website or job posting mentioning ServiceTitan"
+      },
+      {
+        "line": "Your 24/7 emergency service in Tampa stood out when researching.",
+        "why_correct": "Specific service + location. 'When researching' is honest framing. No fabrication.",
+        "artifact_source": "Website advertising 24/7 emergency service"
+      },
+      {
+        "line": "Noticed your work with Carrier systems in the Phoenix area.",
+        "why_correct": "Specific brand + location. Verifiable. Recipient-focused opener.",
+        "artifact_source": "Website mentioning Carrier partnership"
+      },
+      {
+        "line": "Saw your team serves the Austin metro area.",
+        "why_correct": "Safe B-tier fallback when only location data available. No embellishment. Still an opener.",
+        "artifact_source": "Only generic location data available"
+      }
+    ],
+    "incorrect_format_examples": [
+      {
+        "line": "Zephyr's range hoods are a popular choice for chefs.",
+        "problems": ["Company as subject", "Statement not opener", "No recipient focus", "Doesn't transition"],
+        "should_be": "Noticed your Zephyr range hoods are popular with professional chefs."
+      },
+      {
+        "line": "Your 4.9-star Provo, UT HVAC & plumbing team.",
+        "problems": ["Fragment—no verb", "Incomplete sentence", "Doesn't work as opener"],
+        "should_be": "Noticed your team's 4.9-star rating in the Provo area."
+      },
+      {
+        "line": "I saw Airgle's medical-grade air purifiers at the ASHRAE Expo.",
+        "problems": ["First-person experiential claim", "Fabricated attendance", "Recipient knows it's fake"],
+        "should_be": "Saw that Airgle specializes in medical-grade air purification."
+      },
+      {
+        "line": "Your team's expert HVAC service at Dilling impressed the Smiths.",
+        "problems": ["Invented testimonial", "Fabricated name 'the Smiths'", "Unverifiable"],
+        "should_be": "Noticed your team's HVAC service partnership with Dilling."
+      },
+      {
+        "line": "Your expertise with construction, remodel, and maintenance projects is .",
+        "problems": ["Incomplete sentence", "Dangling 'is .'", "No predicate"],
+        "should_be": "Noticed your expertise spans construction, remodel, and maintenance projects."
+      },
+      {
+        "line": "Industry-leading HVAC solutions for your business.",
+        "problems": ["Hype word 'Industry-leading'", "Fragment—no verb", "Tagline, not opener"],
+        "should_be": "Noticed your team offers commercial HVAC solutions in [location]."
+      },
+      {
+        "line": "Cooper Mechanical has served Bucks County for over 90 years.",
+        "problems": ["Company as subject", "Statement about company", "Doesn't address recipient"],
+        "should_be": "Noticed Cooper Mechanical has been serving Bucks County for over 90 years."
+      },
+      {
+        "line": "Saw Chorbie is a Square-powered lawn care pro in the DFW area.",
+        "problems": ["WRONG COMPANY - Serper returned lawn care company instead of HVAC lead"],
+        "should_be": "Query should have been disambiguated with domain to get correct company"
+      }
+    ]
+  },
+
+  "section_5_edge_case_handling": {
+    "edge_cases": [
+      {
+        "case": "Serper returns wrong company (name collision)",
+        "current_behavior": "Uses wrong company data, generates completely irrelevant line",
+        "recommended_handling": "Disambiguate query with domain+location. Validate results contain expected domain. If mismatch, use safe fallback.",
+        "implementation": "SD-01 through SD-06"
+      },
+      {
+        "case": "No Serper results returned",
+        "current_behavior": "Falls back to weak artifact, may fabricate to fill gap",
+        "recommended_handling": "Use explicit safe fallback: 'Noticed your team online and wanted to reach out.' Mark as B-tier. Do NOT fabricate.",
+        "implementation": "In ai_line_generator.py, detect empty/minimal context and force safe fallback"
+      },
+      {
+        "case": "Serper results only contain generic info (location, basic description)",
+        "current_behavior": "May generate B-tier LOCATION artifact with invented specifics",
+        "recommended_handling": "Accept B-tier gracefully. Output: 'Noticed your team serves the [city/region] area.' Do not embellish with invented clients/projects.",
+        "implementation": "Prompt constraint PC-05 handles this"
+      },
+      {
+        "case": "Website is thin or under construction",
+        "current_behavior": "Unknown—may fabricate content",
+        "recommended_handling": "Detect thin content (word count < threshold). Use CSV-only data or safe fallback. Flag for manual review if needed.",
+        "implementation": "Add content quality check in artifact_extractor.py"
+      },
+      {
+        "case": "Company name is generic or ambiguous",
+        "current_behavior": "May pull Serper results for wrong company",
+        "recommended_handling": "Cross-reference domain with company name. If mismatch detected (domain doesn't contain company name), use safe generic only.",
+        "implementation": "Add domain-company matching check before trusting Serper data"
+      },
+      {
+        "case": "Multiple Serper results with conflicting info",
+        "current_behavior": "Unknown—may use any result",
+        "recommended_handling": "Prefer info that appears in multiple sources OR matches website domain. Discard outliers.",
+        "implementation": "Add source consensus logic in serper_client.py"
+      },
+      {
+        "case": "Artifact text is very long (> 50 chars)",
+        "current_behavior": "May produce lines that exceed word limit",
+        "recommended_handling": "Truncate artifact or use first meaningful phrase. Validate length before template substitution.",
+        "implementation": "Add artifact text length check in line_generator.py"
+      },
+      {
+        "case": "Template placeholder not replaced",
+        "current_behavior": "Line contains literal '{artifact_text}'",
+        "recommended_handling": "Reject in validator. Catch with VU-01 placeholder detection.",
+        "implementation": "VU-01 handles this"
+      }
+    ]
+  },
+
+  "section_6_test_cases": {
+    "description": "Use these to verify fixes are working. Run all after implementation.",
+    "serper_disambiguation_test_cases": [
+      {
+        "test_id": "SD-TC-01",
+        "description": "Disambiguated query includes domain",
+        "input": {
+          "companyName": "Chorbie",
+          "companyDomain": "chorbie.com",
+          "location": "Lakeland, Florida"
+        },
+        "expected_query": "\"Chorbie\" chorbie.com Lakeland",
+        "expected_result": "Returns data about the actual Chorbie at chorbie.com, not lawn care company"
+      },
+      {
+        "test_id": "SD-TC-02",
+        "description": "Disambiguated query prevents wrong company",
+        "input": {
+          "companyName": "Comfort Systems",
+          "companyDomain": "comfortsystemshvac.com",
+          "location": "Denver, Colorado"
+        },
+        "expected_query": "\"Comfort Systems\" comfortsystemshvac.com Denver",
+        "expected_result": "Returns data for this specific Comfort Systems, not the publicly traded enterprise company"
+      },
+      {
+        "test_id": "SD-TC-03",
+        "description": "Domain validation catches mismatch",
+        "input": {
+          "companyName": "Green Mountain Solar",
+          "companyDomain": "greenmtnsolar.com",
+          "expected_industry": "HVAC"
+        },
+        "serper_returns": ["results about solar installation"],
+        "expected_behavior": "Domain validation fails, system uses safe fallback instead of wrong-industry data"
+      },
+      {
+        "test_id": "SD-TC-04",
+        "description": "Falls back to location when domain missing",
+        "input": {
+          "companyName": "Generic HVAC Co",
+          "companyDomain": null,
+          "location": "Austin, Texas"
+        },
+        "expected_query": "\"Generic HVAC Co\" Austin",
+        "expected_behavior": "Uses location for disambiguation when domain unavailable"
+      }
+    ],
+    "generation_test_cases": [
+      {
+        "test_id": "GTC-01",
+        "description": "Good S-tier input produces valid opener",
+        "input": {
+          "company": "Wenger Temperature Control",
+          "domain": "wengertempcontrol.com",
+          "serper_data": "Wenger Temperature Control provides commercial HVAC for Columbus Convention Center"
+        },
+        "expected": {
+          "mentions": "Columbus Convention Center",
+          "starts_with_pattern": ["Noticed", "Saw", "Your"],
+          "is_complete_sentence": true,
+          "no_fabrication": true
+        },
+        "should_pass": true
+      },
+      {
+        "test_id": "GTC-02",
+        "description": "Weak input produces safe fallback, not fabrication",
+        "input": {
+          "company": "Generic HVAC Co",
+          "domain": "generichvac.com",
+          "serper_data": "HVAC company in Ohio"
+        },
+        "expected": {
+          "mentions": "Ohio",
+          "is_safe_generic": true,
+          "no_invented_clients": true,
+          "no_invented_events": true
+        },
+        "should_pass": true
+      },
+      {
+        "test_id": "GTC-03",
+        "description": "Tool/platform artifact produces valid line",
+        "input": {
+          "company": "ABC Plumbing",
+          "domain": "abcplumbing.com",
+          "serper_data": "ABC Plumbing uses ServiceTitan for scheduling. Serves Dallas area."
+        },
+        "expected": {
+          "mentions": "ServiceTitan",
+          "starts_with_pattern": ["Noticed", "Saw", "Your"],
+          "is_complete_sentence": true
+        },
+        "should_pass": true
+      }
+    ],
+    "validator_test_cases": [
+      {
+        "test_id": "VTC-01",
+        "description": "Reject first-person experiential claim",
+        "line_to_test": "I saw your booth at the AHR Expo last month.",
+        "expected_result": "REJECT",
+        "rejection_reason": "First-person experiential claim + timing word 'last month'"
+      },
+      {
+        "test_id": "VTC-02",
+        "description": "Reject incomplete sentence",
+        "line_to_test": "Your HVAC expertise is .",
+        "expected_result": "REJECT",
+        "rejection_reason": "Incomplete sentence—dangling predicate"
+      },
+      {
+        "test_id": "VTC-03",
+        "description": "Reject hype word",
+        "line_to_test": "Industry-leading HVAC solutions for your business.",
+        "expected_result": "REJECT",
+        "rejection_reason": "Contains banned hype word 'Industry-leading'"
+      },
+      {
+        "test_id": "VTC-04",
+        "description": "Reject unresolved placeholder",
+        "line_to_test": "Hi {firstName}, noticed your {companyName} team.",
+        "expected_result": "REJECT",
+        "rejection_reason": "Contains unresolved placeholders"
+      },
+      {
+        "test_id": "VTC-05",
+        "description": "Reject company-as-subject statement",
+        "line_to_test": "Zephyr's range hoods are a popular choice for chefs.",
+        "expected_result": "REJECT",
+        "rejection_reason": "Company as subject, not recipient-focused opener"
+      },
+      {
+        "test_id": "VTC-06",
+        "description": "Reject fragment (no verb)",
+        "line_to_test": "Your 4.9-star Provo, UT HVAC team.",
+        "expected_result": "REJECT",
+        "rejection_reason": "Fragment—no main verb, incomplete sentence"
+      },
+      {
+        "test_id": "VTC-07",
+        "description": "Reject too short",
+        "line_to_test": "Nice HVAC work.",
+        "expected_result": "REJECT",
+        "rejection_reason": "Below minimum word count (8 words)"
+      },
+      {
+        "test_id": "VTC-08",
+        "description": "Reject invented testimonial",
+        "line_to_test": "Your service impressed the Johnson family.",
+        "expected_result": "REJECT",
+        "rejection_reason": "Invented testimonial—'the [Name] family' pattern"
+      },
+      {
+        "test_id": "VTC-09",
+        "description": "Reject event attendance claim",
+        "line_to_test": "Saw your team at the ASHRAE Conference in Chicago.",
+        "expected_result": "REJECT",
+        "rejection_reason": "Claims attendance at specific event"
+      },
+      {
+        "test_id": "VTC-10",
+        "description": "Accept valid opener",
+        "line_to_test": "Noticed your team handles commercial HVAC for the Columbus Convention Center.",
+        "expected_result": "PASS",
+        "pass_reason": "Recipient-focused, complete sentence, verifiable detail, no fabrication"
+      },
+      {
+        "test_id": "VTC-11",
+        "description": "Accept valid B-tier fallback",
+        "line_to_test": "Noticed your team serves the greater Phoenix area.",
+        "expected_result": "PASS",
+        "pass_reason": "Safe generic, complete sentence, recipient-focused, no embellishment"
+      },
+      {
+        "test_id": "VTC-12",
+        "description": "Accept valid tool reference",
+        "line_to_test": "Saw that your team uses ServiceTitan for dispatch.",
+        "expected_result": "PASS",
+        "pass_reason": "Specific verifiable tool, complete sentence, recipient-focused"
+      }
+    ]
+  },
+
+  "section_7_implementation_priority": {
+    "description": "Order of implementation to maximize impact quickly",
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Stop the Bleeding - Data Quality",
+        "priority": "CRITICAL",
+        "items": [
+          {
+            "id": "SD-01 + SD-02 + SD-03",
+            "name": "Fix Serper query disambiguation",
+            "reason": "Wrong-company data is worse than no data—completely destroys credibility",
+            "effort": "Medium",
+            "files": ["serper_client.py", "app.py"]
+          },
+          {
+            "id": "PC-02 + VU-06",
+            "name": "First-person experiential claim prohibition",
+            "reason": "These are most damaging—recipient knows immediately it's fake",
+            "effort": "Medium",
+            "files": ["ai_line_generator.py", "validator.py"]
+          },
+          {
+            "id": "PC-03",
+            "name": "Source data grounding in prompt",
+            "reason": "Stops fabrication at generation, not just validation",
+            "effort": "Low",
+            "files": ["ai_line_generator.py"]
+          },
+          {
+            "id": "VU-07",
+            "name": "Sentence completeness check",
+            "reason": "Catches obvious broken outputs",
+            "effort": "Medium",
+            "files": ["validator.py"]
+          }
+        ]
+      },
+      {
+        "phase": 2,
+        "name": "Improve Baseline Quality",
+        "priority": "HIGH",
+        "items": [
+          {
+            "id": "PC-01 + PC-06",
+            "name": "Opener format + approved patterns",
+            "reason": "Ensures lines work as openers, not statements",
+            "effort": "Low",
+            "files": ["ai_line_generator.py"]
+          },
+          {
+            "id": "VU-08",
+            "name": "Opener pattern enforcement in validator",
+            "reason": "Catches lines that are statements about company",
+            "effort": "Medium",
+            "files": ["validator.py"]
+          },
+          {
+            "id": "TF-01 through TF-04",
+            "name": "Template fixes",
+            "reason": "Remove hype words from templates",
+            "effort": "Low",
+            "files": ["config.py"]
+          },
+          {
+            "id": "SD-04",
+            "name": "Domain validation layer for Serper",
+            "reason": "Catches wrong-company results that slip through",
+            "effort": "Medium",
+            "files": ["serper_client.py"]
+          }
+        ]
+      },
+      {
+        "phase": 3,
+        "name": "Close Remaining Gaps",
+        "priority": "MEDIUM",
+        "items": [
+          {
+            "id": "VU-01",
+            "name": "Placeholder detection",
+            "reason": "Catches edge case of unreplaced variables",
+            "effort": "Low",
+            "files": ["validator.py"]
+          },
+          {
+            "id": "VU-02",
+            "name": "Minimum word floor",
+            "reason": "Catches fragments",
+            "effort": "Low",
+            "files": ["validator.py", "config.py"]
+          },
+          {
+            "id": "VU-03 + VU-04",
+            "name": "Expanded banned word lists",
+            "reason": "Catches more banned words",
+            "effort": "Low",
+            "files": ["config.py"]
+          },
+          {
+            "id": "VU-05",
+            "name": "Fix substring false positives",
+            "reason": "Stops rejecting valid specific artifacts",
+            "effort": "Medium",
+            "files": ["validator.py"]
+          }
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "Polish",
+        "priority": "LOW",
+        "items": [
+          {
+            "id": "PC-05 + PC-07",
+            "name": "Safe fallback instruction + anti-patterns",
+            "reason": "Better handling of weak data",
+            "effort": "Low",
+            "files": ["ai_line_generator.py"]
+          },
+          {
+            "id": "VU-09",
+            "name": "Company name mismatch detection",
+            "reason": "Catches wrong-company Serper results",
+            "effort": "Medium",
+            "files": ["validator.py"]
+          },
+          {
+            "id": "SD-05 + SD-06",
+            "name": "Industry mismatch + confidence scoring",
+            "reason": "Advanced disambiguation",
+            "effort": "Medium",
+            "files": ["serper_client.py"]
+          }
+        ]
+      }
+    ]
+  },
+
+  "section_8_success_criteria": {
+    "description": "How to verify fixes worked",
+    "automated_checks": [
+      "All SD-TC-* Serper test cases produce correct queries",
+      "All VTC-* validator test cases pass/fail as expected",
+      "Zero lines with first-person event attendance claims",
+      "Zero incomplete sentences (dangling predicates)",
+      "Zero lines with unresolved placeholders",
+      "All lines between 8-18 words",
+      "Zero banned timing/hype words in output",
+      "Zero wrong-company references (lawn care for HVAC lead, etc.)"
+    ],
+    "manual_spot_checks": [
+      "Sample 50 random outputs—all should read as openers, not statements",
+      "Sample 50 random outputs—all should address recipient (contain 'your' early)",
+      "Sample 50 B-tier outputs—none should have invented specifics",
+      "Sample 50 outputs—zero should make recipient think 'that's not true'",
+      "Sample 50 outputs—all should reference the correct company/industry"
+    ],
+    "ultimate_success_metric": "Reply rate increases from 0% to >1% (industry baseline)"
+  },
+
+  "section_9_files_to_modify_summary": {
+    "serper_client.py": {
+      "changes": [
+        "Fix query construction: remove OR, use implicit AND (SD-01)",
+        "Add location parameter to get_company_info() (SD-02)",
+        "Add build_disambiguated_query() helper function",
+        "Add domain validation: check results contain expected domain (SD-04)",
+        "Add industry mismatch detection (SD-05, Phase 4)",
+        "Add result confidence scoring (SD-06, Phase 4)"
+      ]
+    },
+    "app.py": {
+      "changes": [
+        "Extract location BEFORE Serper call (SD-03)",
+        "Pass location to serper.get_company_info() (SD-03)"
+      ]
+    },
+    "ai_line_generator.py": {
+      "changes": [
+        "Replace SYSTEM_PROMPT (lines 42-54) with new_system_prompt from section 3",
+        "Replace _build_prompt method content (lines 168-193) with new_build_prompt from section 3",
+        "Update word count instruction from 8-12 to 8-18"
+      ]
+    },
+    "config.py": {
+      "changes": [
+        "Add MIN_LINE_WORDS = 8 constant",
+        "Expand BANNED_TIMING_WORDS list (VU-03)",
+        "Expand BANNED_HYPE_ADJECTIVES list (VU-04)",
+        "Fix templates containing hype words (TF-01 through TF-04)"
+      ]
+    },
+    "validator.py": {
+      "changes": [
+        "Add _contains_placeholder() method (VU-01)",
+        "Add minimum word count check using MIN_LINE_WORDS (VU-02)",
+        "Add _contains_experiential_claim() method (VU-06)",
+        "Add _is_complete_sentence() method (VU-07)",
+        "Add _is_valid_opener() method (VU-08)",
+        "Fix _is_generic_artifact() substring logic (VU-05)",
+        "Optionally add company_name param to validate() (VU-09)"
+      ]
+    }
+  }
+}

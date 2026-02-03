@@ -1,0 +1,263 @@
+{
+  "project": {
+    "name": "Instantly Personalization Generator",
+    "description": "SaaS tool for automating personalized email outreach by generating custom opening lines from company data",
+    "status": "Production - deployed on Railway",
+    "repo_url": "Contact team for access"
+  },
+
+  "tech_stack": {
+    "language": "Python 3.11.6",
+    "ui_framework": "Streamlit",
+    "data_processing": ["Pandas", "BeautifulSoup4", "lxml"],
+    "external_apis": {
+      "instantly": "Email campaign platform (API V2)",
+      "anthropic": "Claude AI for intelligent line generation",
+      "serper": "Google search API for company research"
+    },
+    "deployment": ["Railway", "Heroku-compatible"]
+  },
+
+  "architecture": {
+    "entry_points": {
+      "app.py": "Main Streamlit web UI (1,679 lines)",
+      "dashboard.py": "Alternative Flask dashboard (899 lines)",
+      "main.py": "CLI for batch processing (241 lines)"
+    },
+    "core_pipeline": {
+      "1_extraction": {
+        "file": "artifact_extractor.py",
+        "purpose": "Extract personalization hooks from websites/descriptions",
+        "methods": ["extract_from_website()", "extract_from_description()", "extract_all()"]
+      },
+      "2_ranking": {
+        "file": "artifact_ranker.py",
+        "purpose": "Select best artifact using confidence hierarchy",
+        "methods": ["rank_artifacts()", "select_best()", "select_with_fallback()"]
+      },
+      "3_generation": {
+        "file": "line_generator.py",
+        "purpose": "Generate personalized lines from templates",
+        "methods": ["generate()", "generate_with_metadata()"]
+      },
+      "4_validation": {
+        "file": "validator.py",
+        "purpose": "Check quality rules and rejection criteria",
+        "methods": ["validate()", "validate_artifact()"]
+      }
+    },
+    "api_clients": {
+      "instantly_client.py": "Instantly.ai API V2 wrapper (campaigns, leads, updates)",
+      "instantly_sync.py": "Syncs personalization data back to Instantly",
+      "serper_client.py": "Google search integration via Serper.dev",
+      "ai_line_generator.py": "Claude AI integration for intelligent generation",
+      "website_scraper.py": "Web scraping with caching"
+    },
+    "configuration": {
+      "config.py": "Constants, rules, artifact hierarchy definitions"
+    }
+  },
+
+  "artifact_hierarchy": {
+    "description": "Three-tier confidence system for selecting personalization hooks",
+    "tiers": {
+      "S_tier": {
+        "label": "Direct Insider Signals",
+        "confidence": "Highest",
+        "types": [
+          "EXACT_PHRASE - Direct quotes from website",
+          "SPECIFIC_CLIENT - Named clients they work with",
+          "TOOL_PLATFORM - Specific tools/tech they use",
+          "RECENT_ACHIEVEMENT - Awards, funding, milestones"
+        ]
+      },
+      "A_tier": {
+        "label": "Market & Operator Context",
+        "confidence": "Strong",
+        "types": [
+          "COMPETITOR_MENTION - Competitors in their space",
+          "SERVICE_PROGRAM - Specific offerings",
+          "HIRING_SIGNAL - Growth indicators",
+          "PODCAST_MEDIA - Public appearances"
+        ]
+      },
+      "B_tier": {
+        "label": "Contextual Fallback",
+        "confidence": "Lower",
+        "types": [
+          "LOCATION - Geographic context",
+          "COMPANY_DESCRIPTION - Generic about text",
+          "GENERIC_FALLBACK - Last resort"
+        ]
+      }
+    }
+  },
+
+  "main_features": {
+    "campaign_personalization": {
+      "status": "Complete",
+      "description": "Direct Instantly.ai integration",
+      "workflow": [
+        "Connect API key",
+        "Select campaign",
+        "Fetch leads with pagination",
+        "Generate personalization for each lead",
+        "Preview results",
+        "One-click sync back to Instantly"
+      ]
+    },
+    "csv_processing": {
+      "status": "Complete",
+      "description": "Batch CSV upload and processing",
+      "workflow": [
+        "Upload CSV file",
+        "Auto-normalize column names",
+        "Process all rows",
+        "Preview with metrics",
+        "Download or sync to Instantly"
+      ]
+    },
+    "ai_generation": {
+      "status": "Complete",
+      "description": "Claude-powered intelligent line generation",
+      "model": "Claude 3 Haiku",
+      "fallback": "Template-based generation if API unavailable"
+    },
+    "unibox_automation": {
+      "status": "PLANNED - NOT YET BUILT",
+      "description": "Auto-reply to incoming emails in Instantly Unibox"
+    }
+  },
+
+  "planned_feature_auto_reply": {
+    "name": "Unibox Auto-Reply System",
+    "status": "In Planning Phase",
+    "purpose": "Automatically respond to incoming replies within 90 seconds if no human has replied",
+    "architecture": {
+      "polling_interval": "30 seconds",
+      "reply_delay": "90 seconds",
+      "workflow": [
+        "1. Poll Instantly for unread replies (is_unread=true, email_type=received)",
+        "2. Add new replies to queue with timestamp",
+        "3. Every 30s, check queue for items > 90 seconds old",
+        "4. For each: check if human already replied, if not - auto-respond",
+        "5. Mark thread as handled"
+      ],
+      "api_endpoints_needed": {
+        "fetch_replies": "POST /api/v2/emails/list",
+        "send_reply": "POST /api/v2/emails/reply",
+        "mark_read": "POST /api/v2/emails/threads/{id}/mark-as-read"
+      }
+    },
+    "open_questions": {
+      "reply_content": {
+        "option_a": "Quick acknowledgment ('Got your message! Looking into this...')",
+        "option_b": "AI-generated contextual response",
+        "option_c": "Custom templates"
+      },
+      "claim_mechanism": {
+        "option_a": "Skip auto-reply if any human reply exists after their message",
+        "option_b": "Manual 'I'm on it' button in UI",
+        "option_c": "Both mechanisms"
+      }
+    }
+  },
+
+  "instantly_api_integration": {
+    "version": "V2",
+    "base_url": "https://api.instantly.ai/api/v2",
+    "auth": "Bearer token",
+    "endpoints_in_use": {
+      "GET /campaigns": "List all campaigns",
+      "POST /leads/list": "Fetch leads with pagination",
+      "PATCH /leads/{id}": "Update single lead",
+      "POST /leads": "Upsert leads with custom variables"
+    },
+    "custom_variables_updated": [
+      "personalization_line",
+      "artifact_type",
+      "artifact_text",
+      "confidence_tier"
+    ]
+  },
+
+  "environment_setup": {
+    "required": {
+      "INSTANTLY_API_KEY": {
+        "source": "Instantly.ai Settings → Integrations → API → V2 Key",
+        "required": true
+      }
+    },
+    "optional": {
+      "SERPER_API_KEY": {
+        "source": "Serper.dev account",
+        "purpose": "Google search for company research",
+        "has_fallback": true
+      },
+      "ANTHROPIC_API_KEY": {
+        "source": "Anthropic console",
+        "purpose": "Enable AI-powered line generation",
+        "has_fallback": "Uses templates if not set"
+      }
+    }
+  },
+
+  "data_storage": {
+    "approach": "API-driven, minimal local storage",
+    "persistence": {
+      "session_state": "Streamlit in-memory for UI state",
+      "json_file": "/saved_results/instantly_results.json for sync history",
+      "no_database": "All lead data flows through Instantly API"
+    }
+  },
+
+  "key_files_to_understand": [
+    {"file": "app.py", "importance": "Main entry point, UI logic, workflow orchestration"},
+    {"file": "config.py", "importance": "All rules, constants, artifact type definitions"},
+    {"file": "artifact_extractor.py", "importance": "Core extraction logic"},
+    {"file": "artifact_ranker.py", "importance": "Hierarchy and selection logic"},
+    {"file": "instantly_client.py", "importance": "API integration patterns"},
+    {"file": "instantly_sync.py", "importance": "How data syncs back to Instantly"}
+  ],
+
+  "recent_changes": [
+    {"commit": "b3f3424", "description": "Fix sidebar nav - CSV tools no longer override Instantly nav"},
+    {"commit": "a499e94", "description": "Trigger Railway rebuild"},
+    {"commit": "f8274e6", "description": "Reorganize UI - Instantly tools as primary, CSV tools secondary"},
+    {"commit": "874da12", "description": "Add prominent Push to Instantly button after processing"},
+    {"commit": "ffc5485", "description": "Fix detection of existing personalization - check payload field"}
+  ],
+
+  "testing": {
+    "test_file": "test_hierarchy.py",
+    "coverage": "Comprehensive artifact hierarchy tests",
+    "run_command": "pytest test_hierarchy.py -v"
+  },
+
+  "deployment": {
+    "platform": "Railway",
+    "procfile": "web: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0",
+    "python_version": "3.11.6"
+  },
+
+  "context_for_partner": {
+    "what_works": [
+      "Full personalization pipeline (extract → rank → generate → validate)",
+      "Instantly API integration for campaigns and leads",
+      "CSV batch processing",
+      "AI-powered generation with Claude",
+      "Web scraping with caching",
+      "Quality validation and rejection rules"
+    ],
+    "what_needs_building": [
+      "Unibox auto-reply system (architecture planned, needs implementation)",
+      "Background worker for polling replies",
+      "Queue management for delayed responses",
+      "Human claim mechanism to prevent auto-reply conflicts"
+    ],
+    "design_decisions_needed": [
+      "Auto-reply content strategy (acknowledgment vs AI-generated)",
+      "How humans 'claim' a lead to prevent auto-reply"
+    ]
+  }
+}
