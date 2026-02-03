@@ -39,32 +39,27 @@ class AILineGenerator:
     Uses Claude Haiku for fast, cost-effective generation.
     """
 
-    SYSTEM_PROMPT = """You write personalized cold email openers based on research. Your job is to find the MOST SPECIFIC, INTERESTING detail and reference it naturally.
+    SYSTEM_PROMPT = """You write highly personalized cold email openers. Find the MOST SPECIFIC detail and craft a unique, engaging opener.
 
-WHAT MAKES A GREAT OPENER:
-- References something UNIQUE to this company (not generic industry stuff)
-- Shows you actually researched them
-- Makes the recipient think "wow, they really looked into us"
+VARY YOUR APPROACH - Don't always use the same pattern! Mix these styles:
+- "Noticed your team uses [tool] — curious how it's working for dispatching."
+- "Your [specific service] work in [location] caught my attention."
+- "Saw [company] has been serving [area] since [year] — impressive track record."
+- "The [specific detail] on your website stood out to me."
+- "Your focus on [specialty] in [location] is exactly what caught my eye."
 
-TIER S (Best - use if available):
-- Specific software/tools they use: "Noticed your team runs on ServiceTitan for dispatching."
-- Named projects or clients: "Saw your work on the downtown Portland renovation."
-- Specific achievements: "Your 200+ Google reviews in Denver speak volumes."
-- Podcast/interview appearances: "Caught your interview on the Home Service Expert podcast."
+WHAT TO REFERENCE (in priority order):
+1. TOOLS: Software they use (ServiceTitan, Freshdesk, HubSpot, etc.)
+2. SERVICES: Specific services (tankless water heaters, drain cleaning, commercial HVAC)
+3. ACHIEVEMENTS: Reviews, years in business, awards, team size
+4. RESEARCH: News, press mentions, podcast appearances
+5. LOCATION: City/area they serve (only if nothing else)
 
-TIER A (Good):
-- Specific services: "Your tankless water heater installations caught my attention."
-- Hiring signals: "Saw you're expanding your service technician team."
-- Specific certifications: "Your Mitsubishi Diamond Contractor certification stood out."
-
-TIER B (Fallback - only if nothing else):
-- Location only: "Noticed your team serves the Nashville area."
-
-Rules:
-- Start with "Noticed", "Saw", or "Your"
-- Be conversational, not robotic
+RULES:
+- Be conversational and natural, NOT robotic
 - 10-18 words
-- NEVER make up details - only use what's in the research data"""
+- NEVER invent details - only use what's in the data
+- Make it feel like you actually researched them"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -139,7 +134,7 @@ Rules:
 
         try:
             logger.info(f"Calling Claude API with model={self.model} for {company_name}")
-            logger.info(f"Context length: {len(context)} chars")
+            logger.info(f"Context being sent to Claude:\n{context[:500]}...")
 
             response = self.client.messages.create(
                 model=self.model,
@@ -148,8 +143,10 @@ Rules:
                 messages=[{"role": "user", "content": prompt}],
             )
 
+            raw_response = response.content[0].text
             logger.info(f"Claude API SUCCESS for {company_name}")
-            result = self._parse_response(response.content[0].text)
+            logger.info(f"Claude raw response:\n{raw_response}")
+            result = self._parse_response(raw_response)
 
             # Validate and clean the output
             result = self._validate_and_clean(result, company_name)
@@ -214,18 +211,21 @@ Rules:
 {context}
 === END RESEARCH ===
 
-Your task: Write ONE personalized opener for a cold email. Find the MOST SPECIFIC detail from the research above.
+Write a personalized cold email opener for {company_name}. Use the MOST SPECIFIC detail you can find.
 
-PRIORITY:
-1. Tools/software they use (Freshdesk, Slack, ServiceTitan, etc.)
-2. Specific services (water heater repair, drain cleaning, etc.)
-3. Projects, clients, or achievements mentioned
-4. Location + industry context (last resort)
+IMPORTANT: Be creative and vary your approach! Don't just say "Noticed your team uses [tool]" - make it engaging.
 
-Reply EXACTLY like this:
-LINE: [your personalized 10-18 word opener]
-TIER: S
-ARTIFACT: [the specific detail you used]"""
+Good examples:
+- "Your plumbing team's use of ServiceTitan for dispatching caught my eye."
+- "Saw {company_name} has built a strong reputation in [location] for [service]."
+- "The way you've grown {company_name} since [year] is impressive."
+- "Your focus on [specific service] sets you apart in [location]."
+
+Reply in this format:
+LINE: [your unique 10-18 word opener - be creative!]
+TIER: [S/A/B]
+TYPE: [TOOL/SERVICE/ACHIEVEMENT/LOCATION]
+ARTIFACT: [the specific detail you referenced]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
