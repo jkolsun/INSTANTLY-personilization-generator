@@ -836,6 +836,8 @@ def render_csv_personalization_page():
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file, low_memory=False)
+            # Debug: Show original column names before normalization
+            original_cols = list(df.columns)
             df = normalize_columns(df)
             st.session_state.csv_upload_df = df
             # Reset processing state when new file uploaded
@@ -843,6 +845,16 @@ def render_csv_personalization_page():
             st.session_state.csv_processed_df = None
             st.session_state.csv_results_log = []
             st.success(f"Loaded {len(df)} leads")
+            # Debug: Show column mapping info
+            with st.expander("Debug: Column Mapping", expanded=False):
+                st.write("**Original columns:**", original_cols[:15])
+                st.write("**Normalized columns:**", list(df.columns)[:15])
+                # Check if company_name exists
+                if "company_name" in df.columns:
+                    sample = df["company_name"].dropna().head(3).tolist()
+                    st.success(f"company_name column found! Samples: {sample}")
+                else:
+                    st.error("company_name column NOT found after normalization!")
         except Exception as e:
             st.error(f"Error reading file: {e}")
 
