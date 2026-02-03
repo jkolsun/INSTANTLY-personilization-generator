@@ -163,10 +163,7 @@ class SerperClient:
         location: Optional[str] = None
     ) -> CompanyInfo:
         """
-        Get company information with ONE optimized search query.
-
-        Uses a disambiguated search query that includes domain and location
-        to prevent returning data for wrong companies with similar names.
+        Get company information with MULTIPLE search queries for richer data.
 
         Args:
             company_name: Name of the company
@@ -179,21 +176,44 @@ class SerperClient:
         info = CompanyInfo(name=company_name, description="")
         clean_name = company_name.strip()
 
-        # Build disambiguated query using all available signals
-        # Uses implicit AND (space) to ensure results match ALL criteria
-        query = self._build_disambiguated_query(clean_name, domain, location)
-
-        logger.info(f"Serper query for {company_name}: {query}")
+        # Clean domain for searches
+        clean_domain = ""
+        if domain:
+            clean_domain = domain.replace("https://", "").replace("http://", "").replace("www.", "")
 
         try:
-            results = self.search(query, num_results=15)
-            self._process_search_results(results, info)
+            # SEARCH 1: Main company search
+            query1 = self._build_disambiguated_query(clean_name, domain, location)
+            logger.info(f"Serper query 1 for {company_name}: {query1}")
+            results1 = self.search(query1, num_results=10)
+            self._process_search_results(results1, info)
 
-            # SD-04 & SD-06: Validate domain matches in results
+            # SEARCH 2: Reviews and testimonials (great for personalization)
+            if clean_domain:
+                query2 = f'"{clean_name}" reviews OR testimonials site:{clean_domain}'
+                logger.info(f"Serper query 2 for {company_name}: {query2}")
+                try:
+                    results2 = self.search(query2, num_results=5)
+                    self._process_search_results(results2, info)
+                except Exception:
+                    pass
+
+            # SEARCH 3: News and press
+            query3 = f'"{clean_name}" news OR press OR award'
+            if location:
+                query3 += f' {location.split(",")[0]}'
+            logger.info(f"Serper query 3 for {company_name}: {query3}")
+            try:
+                results3 = self.search(query3, num_results=5)
+                self._process_search_results(results3, info)
+            except Exception:
+                pass
+
+            # Validate domain matches
             if domain:
-                self._validate_domain_matches(results, domain, info)
+                self._validate_domain_matches(results1, domain, info)
 
-            # SD-05: Check for industry mismatch
+            # Check for industry mismatch
             self._check_industry_mismatch(info)
 
         except requests.HTTPError as e:
