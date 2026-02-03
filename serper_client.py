@@ -38,6 +38,15 @@ class CompanyInfo:
     recent_projects: List[str] = field(default_factory=list)
     location: Optional[str] = None
     knowledge_panel: Optional[Dict[str, Any]] = None
+    # NEW: High-value personalization data
+    google_rating: Optional[str] = None  # "4.8 stars"
+    review_count: Optional[str] = None   # "150+ reviews"
+    years_in_business: Optional[str] = None  # "since 1985" or "25 years"
+    bbb_rating: Optional[str] = None     # "A+ BBB"
+    is_hiring: bool = False              # Growth signal
+    hiring_roles: List[str] = field(default_factory=list)
+    certifications: List[str] = field(default_factory=list)  # Rheem dealer, etc.
+    team_size: Optional[str] = None      # "15 employees"
     # SD-06: Confidence scoring fields
     domain_match_count: int = 0
     total_results: int = 0
@@ -268,9 +277,14 @@ class SerperClient:
             else:
                 info.snippets.append(snippet)
 
-            # Extract tools and clients from ALL results
+            # Extract ALL valuable data from results
             self._extract_tools(snippet, info)
             self._extract_clients(snippet, info)
+            self._extract_reviews_and_ratings(snippet, info)
+            self._extract_years_in_business(snippet, info)
+            self._extract_certifications(snippet, info)
+            self._extract_hiring_signals(snippet, info)
+            self._extract_team_size(snippet, info)
 
     def _extract_linkedin_details(self, text: str, info: CompanyInfo):
         """Extract useful details from LinkedIn snippets."""
@@ -318,6 +332,120 @@ class SerperClient:
                 clean = match.strip()[:50]
                 if len(clean) > 3 and clean not in info.clients:
                     info.clients.append(clean)
+
+    def _extract_reviews_and_ratings(self, text: str, info: CompanyInfo):
+        """Extract Google reviews, ratings, and social proof."""
+        text_lower = text.lower()
+
+        # Star ratings (4.8 stars, 4.9/5, etc.)
+        rating_patterns = [
+            r'(\d\.\d)\s*(?:star|/5|out of 5)',
+            r'(\d\.\d)-star',
+            r'rating[:\s]+(\d\.\d)',
+        ]
+        for pattern in rating_patterns:
+            match = re.search(pattern, text_lower)
+            if match and not info.google_rating:
+                info.google_rating = f"{match.group(1)} stars"
+                break
+
+        # Review counts (150 reviews, 200+ reviews, etc.)
+        review_patterns = [
+            r'(\d{2,})\+?\s*(?:reviews|google reviews|customer reviews)',
+            r'(\d{2,})\+?\s*(?:5-star|five star)\s*reviews',
+        ]
+        for pattern in review_patterns:
+            match = re.search(pattern, text_lower)
+            if match and not info.review_count:
+                info.review_count = f"{match.group(1)}+ reviews"
+                break
+
+    def _extract_years_in_business(self, text: str, info: CompanyInfo):
+        """Extract years in business, founding date."""
+        text_lower = text.lower()
+
+        # "Since 1985", "established 1990", "founded in 2005"
+        year_patterns = [
+            r'(?:since|established|founded|serving since|in business since)\s*(\d{4})',
+            r'(\d{4})\s*-\s*present',
+            r'for\s+(?:over\s+)?(\d{1,2})\+?\s*years',
+        ]
+        for pattern in year_patterns:
+            match = re.search(pattern, text_lower)
+            if match and not info.years_in_business:
+                val = match.group(1)
+                if len(val) == 4:  # It's a year
+                    info.years_in_business = f"since {val}"
+                else:  # It's number of years
+                    info.years_in_business = f"{val}+ years"
+                break
+
+    def _extract_certifications(self, text: str, info: CompanyInfo):
+        """Extract brand certifications and partnerships."""
+        # Common HVAC/Plumbing brand partnerships
+        brands = [
+            "Rheem", "Carrier", "Trane", "Lennox", "Goodman", "American Standard",
+            "Mitsubishi", "Daikin", "Fujitsu", "Bryant", "Ruud", "York",
+            "Kohler", "Moen", "Delta", "Rinnai", "Navien", "Bradford White",
+        ]
+
+        for brand in brands:
+            if brand.lower() in text.lower():
+                cert = f"{brand} dealer/certified"
+                if cert not in info.certifications:
+                    info.certifications.append(cert)
+
+        # Other certifications
+        cert_patterns = [
+            r'(licensed|bonded|insured)',
+            r'(BBB\s*A\+?|A\+?\s*BBB|Better Business Bureau)',
+            r'(NATE certified|EPA certified|certified technicians)',
+        ]
+        for pattern in cert_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for match in matches:
+                if match and match not in info.certifications:
+                    info.certifications.append(match)
+
+    def _extract_hiring_signals(self, text: str, info: CompanyInfo):
+        """Extract hiring/growth signals."""
+        text_lower = text.lower()
+
+        hiring_keywords = [
+            r'(hiring|now hiring|we\'re hiring|join our team)',
+            r'(career|careers|job opening|job posting)',
+            r'(looking for|seeking)\s+(?:a\s+)?(\w+\s*\w*)',
+        ]
+
+        for pattern in hiring_keywords:
+            if re.search(pattern, text_lower):
+                info.is_hiring = True
+                break
+
+        # Specific roles
+        role_patterns = [
+            r'hiring\s+(?:a\s+)?(\w+\s*(?:technician|plumber|hvac|installer|manager))',
+            r'looking for\s+(?:a\s+)?(\w+\s*(?:technician|plumber|hvac|installer))',
+        ]
+        for pattern in role_patterns:
+            matches = re.findall(pattern, text_lower)
+            for match in matches:
+                if match and match not in info.hiring_roles:
+                    info.hiring_roles.append(match)
+
+    def _extract_team_size(self, text: str, info: CompanyInfo):
+        """Extract team/company size."""
+        patterns = [
+            r'(\d{1,3})\+?\s*(?:employees|team members|technicians|staff)',
+            r'team of\s+(\d{1,3})',
+            r'(\d{1,3})\s*(?:service )?(?:trucks|vans|vehicles)',
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match and not info.team_size:
+                info.team_size = match.group(0)
+                break
 
     def _validate_domain_matches(
         self,
@@ -433,29 +561,56 @@ def extract_artifacts_from_serper(company_info: CompanyInfo) -> str:
     """
     parts = []
 
-    # HIGHEST PRIORITY: Podcast/interview appearances (creates AMAZING hooks)
+    # HIGHEST PRIORITY: Google reviews/ratings (HUGE ego stroke)
+    if company_info.google_rating and company_info.review_count:
+        parts.append(f'Google rating: {company_info.google_rating} with {company_info.review_count}')
+    elif company_info.google_rating:
+        parts.append(f'Google rating: {company_info.google_rating}')
+    elif company_info.review_count:
+        parts.append(f'Has {company_info.review_count} on Google')
+
+    # HIGH PRIORITY: Years in business (longevity = trust)
+    if company_info.years_in_business:
+        parts.append(f'In business {company_info.years_in_business}')
+
+    # HIGH PRIORITY: Hiring signals (growth = success)
+    if company_info.is_hiring:
+        if company_info.hiring_roles:
+            parts.append(f'Currently hiring: {", ".join(company_info.hiring_roles[:2])}')
+        else:
+            parts.append('Currently hiring/expanding team')
+
+    # HIGH PRIORITY: Team size (scale = success)
+    if company_info.team_size:
+        parts.append(f'Team: {company_info.team_size}')
+
+    # HIGH PRIORITY: Tools/platforms (shows sophistication)
+    for tool in company_info.tools[:3]:
+        parts.append(f'Uses {tool}')
+
+    # HIGH PRIORITY: Certifications/partnerships
+    for cert in company_info.certifications[:3]:
+        parts.append(f'Certified: {cert}')
+
+    # HIGH PRIORITY: Podcast/interview appearances
     for podcast in company_info.podcasts[:2]:
         parts.append(f'Featured on podcast: {podcast}')
 
-    # HIGH PRIORITY: Tools/platforms (Tier S - very specific)
-    for tool in company_info.tools[:3]:
-        parts.append(f'Uses {tool}.')
-
-    # HIGH PRIORITY: Clients/projects (Tier S - very specific)
+    # HIGH PRIORITY: Clients/projects
     for client in company_info.clients[:3]:
-        parts.append(f'Worked with {client}.')
+        parts.append(f'Worked with {client}')
 
-    # HIGH PRIORITY: Recent projects
-    for project in company_info.recent_projects[:2]:
-        parts.append(f'Recent work: {project}')
-
-    # MEDIUM PRIORITY: LinkedIn info
-    for li in company_info.linkedin_info[:2]:
-        parts.append(li)
+    # MEDIUM PRIORITY: Awards
+    for award in company_info.awards[:2]:
+        parts.append(f'Award: {award}')
 
     # MEDIUM PRIORITY: News mentions
     for news in company_info.news_mentions[:2]:
         parts.append(f'In the news: {news}')
+
+    # MEDIUM PRIORITY: Recent projects
+    for project in company_info.recent_projects[:2]:
+        parts.append(f'Recent work: {project}')
 
     # Knowledge graph info
     if company_info.knowledge_panel:
@@ -469,11 +624,11 @@ def extract_artifacts_from_serper(company_info: CompanyInfo) -> str:
 
     # Location (Tier B fallback)
     if company_info.location:
-        parts.append(f"Located in {company_info.location}.")
+        parts.append(f"Located in {company_info.location}")
 
     # General snippets as fallback
     for snippet in company_info.snippets[:2]:
         if snippet not in parts:
             parts.append(snippet)
 
-    return " ".join(parts)
+    return " | ".join(parts)
