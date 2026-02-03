@@ -39,26 +39,32 @@ class AILineGenerator:
     Uses Claude Haiku for fast, cost-effective generation.
     """
 
-    SYSTEM_PROMPT = """You write cold email opening lines. Reference something SPECIFIC that shows you researched the company.
+    SYSTEM_PROMPT = """You write personalized cold email openers based on research. Your job is to find the MOST SPECIFIC, INTERESTING detail and reference it naturally.
 
-PRIORITY ORDER (use the first one available):
-1. TOOLS/SOFTWARE: "Noticed your team uses Freshdesk for customer support." or "Saw you're using Slack for team communication."
-2. SPECIFIC SERVICES: "Your drain cleaning and pipe installation services caught my attention." or "Noticed your water heater repair specialty."
-3. LOCATION + SERVICE: "Saw your 24/7 plumbing service in Denver." or "Noticed your HVAC team serves the Portland area."
-4. LOCATION ONLY (last resort): "Noticed your team serves Nashville, Tennessee."
+WHAT MAKES A GREAT OPENER:
+- References something UNIQUE to this company (not generic industry stuff)
+- Shows you actually researched them
+- Makes the recipient think "wow, they really looked into us"
 
-EXAMPLES:
-- "Noticed your team uses Freshdesk for support tickets."
-- "Saw you're running Constant Contact for email marketing."
-- "Your water heater installation and repair services caught my attention."
-- "Noticed your drain cleaning and sewer line specialty."
-- "Saw your commercial plumbing work in Oklahoma City."
+TIER S (Best - use if available):
+- Specific software/tools they use: "Noticed your team runs on ServiceTitan for dispatching."
+- Named projects or clients: "Saw your work on the downtown Portland renovation."
+- Specific achievements: "Your 200+ Google reviews in Denver speak volumes."
+- Podcast/interview appearances: "Caught your interview on the Home Service Expert podcast."
+
+TIER A (Good):
+- Specific services: "Your tankless water heater installations caught my attention."
+- Hiring signals: "Saw you're expanding your service technician team."
+- Specific certifications: "Your Mitsubishi Diamond Contractor certification stood out."
+
+TIER B (Fallback - only if nothing else):
+- Location only: "Noticed your team serves the Nashville area."
 
 Rules:
 - Start with "Noticed", "Saw", or "Your"
-- Pick ONE specific detail - don't combine multiple
-- 8-15 words max
-- Never invent details not in the data"""
+- Be conversational, not robotic
+- 10-18 words
+- NEVER make up details - only use what's in the research data"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -204,15 +210,22 @@ Rules:
         """Build the prompt for Claude."""
         return f"""Company: {company_name}
 
-Research data:
+=== RESEARCH DATA ===
 {context}
+=== END RESEARCH ===
 
-Write ONE opening line for a cold email to this company. Pick the most specific detail from the research.
+Your task: Write ONE personalized opener for a cold email. Find the MOST SPECIFIC detail from the research above.
 
-Reply in this exact format:
-LINE: [your 8-15 word opener]
-TIER: [S if very specific, A if somewhat specific, B if just location]
-ARTIFACT: [the specific detail you referenced]"""
+PRIORITY:
+1. Tools/software they use (Freshdesk, Slack, ServiceTitan, etc.)
+2. Specific services (water heater repair, drain cleaning, etc.)
+3. Projects, clients, or achievements mentioned
+4. Location + industry context (last resort)
+
+Reply EXACTLY like this:
+LINE: [your personalized 10-18 word opener]
+TIER: S
+ARTIFACT: [the specific detail you used]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""

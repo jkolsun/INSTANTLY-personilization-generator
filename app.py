@@ -945,28 +945,29 @@ def render_csv_personalization_page():
                         # Build lead data - include Technologies and Keywords from CSV
                         technologies = row.get("technologies", "") or row.get("Technologies", "") or ""
                         keywords = row.get("keywords", "") or row.get("Keywords", "") or ""
+                        technologies = str(technologies) if pd.notna(technologies) else ""
+                        keywords = str(keywords) if pd.notna(keywords) else ""
 
                         lead_data = {
                             "company_description": row.get("company_description", "") or "",
                             "industry": row.get("industry", "") or "",
                             "location": location,
-                            "technologies": str(technologies) if pd.notna(technologies) else "",
-                            "keywords": str(keywords) if pd.notna(keywords) else "",
+                            "technologies": technologies,
+                            "keywords": keywords,
                         }
 
-                        # Generate line with Claude
+                        # Use Claude with ALL available data
                         ai_result = ai_generator.generate_line(
                             company_name=company_name,
                             serper_data=serper_description,
                             lead_data=lead_data,
                         )
-
-                        # Use AI result directly - Claude validates internally
                         final_line = ai_result.line
                         final_tier = ai_result.confidence_tier
                         final_type = ai_result.artifact_type
+                        artifact_used = ai_result.artifact_used
 
-                        # Fix type if Claude returned generic fallback with wrong type
+                        # Fix type if Claude returned generic fallback
                         if final_line.lower().strip().rstrip('.') == "came across your company online":
                             final_tier = "B"
                             final_type = "FALLBACK"
@@ -979,7 +980,7 @@ def render_csv_personalization_page():
                             "line": final_line,
                             "tier": final_tier,
                             "type": final_type,
-                            "artifact": ai_result.artifact_used or "",
+                            "artifact": artifact_used or "",
                             "source": "Serper+Claude" if serper_description else "Claude",
                         })
 
