@@ -25,9 +25,13 @@ COLUMN_MAPPINGS: Dict[str, str] = {
     "company_name": "company_name",
     "companyname": "company_name",
     "organization": "company_name",
+    "organization name": "company_name",  # Apollo
+    "organization_name": "company_name",  # Apollo
     "org": "company_name",
     "business": "company_name",
     "business_name": "company_name",
+    "account name": "company_name",  # Salesforce
+    "account_name": "company_name",
 
     # First name
     "first_name": "first_name",
@@ -52,6 +56,9 @@ COLUMN_MAPPINGS: Dict[str, str] = {
     "linkedin_url": "linkedin_url",
     "linkedinurl": "linkedin_url",
     "linkedin_profile": "linkedin_url",
+    "person linkedin url": "linkedin_url",  # Apollo
+    "person_linkedin_url": "linkedin_url",  # Apollo
+    "linkedin url": "linkedin_url",  # Apollo
 
     # Company description
     "company_description": "company_description",
