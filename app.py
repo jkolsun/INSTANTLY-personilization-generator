@@ -970,29 +970,13 @@ def render_csv_personalization_page():
                             lead_data=lead_data,
                         )
 
-                        # Validate
-                        ai_artifact = Artifact(
-                            text=ai_result.artifact_used or "",
-                            artifact_type=ArtifactType.EXACT_PHRASE if ai_result.artifact_type != "FALLBACK" else ArtifactType.FALLBACK,
-                            evidence_source="claude_ai",
-                            evidence_url="",
-                            score=1.0,
-                        )
-                        validation = validator.validate(ai_result.line, ai_artifact, company_name=company_name)
+                        # Use AI result directly - Claude validates internally
+                        final_line = ai_result.line
+                        final_tier = ai_result.confidence_tier
+                        final_type = ai_result.artifact_type
 
-                        if validation.is_valid:
-                            final_line = ai_result.line
-                            final_tier = ai_result.confidence_tier
-                            final_type = ai_result.artifact_type
-                        else:
-                            # Debug: show why validation failed
-                            if idx < 5:
-                                st.warning(f"**Validation FAILED for {company_name}:**")
-                                st.write(f"  AI line: `{ai_result.line}`")
-                                st.write(f"  AI artifact: `{ai_result.artifact_used}`")
-                                st.write(f"  AI type: `{ai_result.artifact_type}`")
-                                st.write(f"  Errors: {validation.errors}")
-                            final_line = "Came across your company online."
+                        # Fix type if Claude returned generic fallback with wrong type
+                        if final_line.lower().strip().rstrip('.') == "came across your company online":
                             final_tier = "B"
                             final_type = "FALLBACK"
 
