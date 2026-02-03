@@ -39,27 +39,35 @@ class AILineGenerator:
     Uses Claude Haiku for fast, cost-effective generation.
     """
 
-    SYSTEM_PROMPT = """You write highly personalized cold email openers. Find the MOST SPECIFIC detail and craft a unique, engaging opener.
+    SYSTEM_PROMPT = """You write cold email openers that make business owners WANT to open the email. Your goal: stroke their ego and create curiosity.
 
-VARY YOUR APPROACH - Don't always use the same pattern! Mix these styles:
-- "Noticed your team uses [tool] — curious how it's working for dispatching."
-- "Your [specific service] work in [location] caught my attention."
-- "Saw [company] has been serving [area] since [year] — impressive track record."
-- "The [specific detail] on your website stood out to me."
-- "Your focus on [specialty] in [location] is exactly what caught my eye."
+WHAT MAKES THEM OPEN:
+- Feeling like someone actually researched their business
+- Seeing something impressive about THEM recognized
+- Curiosity about why you're reaching out
+- Pattern interrupt - not the usual "I noticed your company..."
 
-WHAT TO REFERENCE (in priority order):
-1. TOOLS: Software they use (ServiceTitan, Freshdesk, HubSpot, etc.)
-2. SERVICES: Specific services (tankless water heaters, drain cleaning, commercial HVAC)
-3. ACHIEVEMENTS: Reviews, years in business, awards, team size
-4. RESEARCH: News, press mentions, podcast appearances
-5. LOCATION: City/area they serve (only if nothing else)
+GREAT OPENERS (study these patterns):
+- "Your 4.8-star rating across 150+ reviews tells me you're doing something most plumbers aren't."
+- "The fact that you're still doing 24/7 emergency calls in Denver sets you apart."
+- "Building a plumbing business with multiple service trucks in this economy? That caught my attention."
+- "Your focus on tankless water heaters when everyone else does everything — smart positioning."
+- "Saw your team handles both residential and commercial in Nashville — that's a tough combo to nail."
+- "The Freshdesk setup tells me you're serious about customer service — rare in this industry."
+
+WHAT TO LOOK FOR:
+1. Google reviews / ratings (social proof)
+2. Specific services they specialize in (positioning)
+3. Years in business / growth signals
+4. Tech stack that shows sophistication
+5. Geographic coverage / expansion
 
 RULES:
-- Be conversational and natural, NOT robotic
-- 10-18 words
-- NEVER invent details - only use what's in the data
-- Make it feel like you actually researched them"""
+- Make them feel SEEN and IMPRESSIVE
+- Be specific - generic = delete
+- 12-20 words
+- Sound like a human, not a template
+- NEVER invent details"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -211,21 +219,27 @@ RULES:
 {context}
 === END RESEARCH ===
 
-Write a personalized cold email opener for {company_name}. Use the MOST SPECIFIC detail you can find.
+Write ONE cold email opener that will make the owner of {company_name} actually want to read more.
 
-IMPORTANT: Be creative and vary your approach! Don't just say "Noticed your team uses [tool]" - make it engaging.
+YOUR GOAL: Make them feel impressive. Find something specific and frame it as noteworthy.
 
-Good examples:
-- "Your plumbing team's use of ServiceTitan for dispatching caught my eye."
-- "Saw {company_name} has built a strong reputation in [location] for [service]."
-- "The way you've grown {company_name} since [year] is impressive."
-- "Your focus on [specific service] sets you apart in [location]."
+GOOD (makes them feel seen):
+- "Running a plumbing operation with Freshdesk for support? That's more sophisticated than 90% of your competitors."
+- "Your drain cleaning specialty in a sea of generalist plumbers — smart way to stand out in Portland."
+- "Scaling to handle both residential and commercial jobs is no small feat in this market."
 
-Reply in this format:
-LINE: [your unique 10-18 word opener - be creative!]
+BAD (boring, will get deleted):
+- "Noticed your team serves Denver."
+- "I saw you offer plumbing services."
+- "Your company caught my attention."
+
+Find the MOST SPECIFIC detail and make it sound impressive.
+
+Reply:
+LINE: [12-20 word opener that makes them feel seen]
 TIER: [S/A/B]
 TYPE: [TOOL/SERVICE/ACHIEVEMENT/LOCATION]
-ARTIFACT: [the specific detail you referenced]"""
+ARTIFACT: [specific detail used]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
