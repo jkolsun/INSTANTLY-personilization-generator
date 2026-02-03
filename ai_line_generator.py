@@ -73,9 +73,10 @@ FRANCHISE / SUBSIDIARY:
 RULES:
 - Make them feel IMPRESSIVE and SUCCESSFUL
 - Be specific - the more specific, the more they'll open
-- 12-20 words
+- 12-20 words, COMPLETE sentences only
 - Sound human and genuine, not salesy
-- NEVER invent details - only use what's in the data"""
+- NEVER invent details - only use what's in the data
+- ALWAYS write complete sentences - never leave words missing at the end"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -182,7 +183,7 @@ RULES:
 
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=300,
+                max_tokens=500,  # Increased to prevent any truncation
                 system=self.SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -281,8 +282,6 @@ ARTIFACT: [the specific detail you used]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
-        lines = response_text.strip().split("\n")
-
         result = {
             "line": "Came across your company online.",
             "tier": "B",
@@ -291,27 +290,67 @@ ARTIFACT: [the specific detail you used]"""
             "reason": "Parse error",
         }
 
-        for line in lines:
-            line = line.strip()
-            if line.upper().startswith("LINE:"):
-                result["line"] = line[5:].strip()
-            elif line.upper().startswith("TIER:"):
-                tier = line[5:].strip().upper()
-                if tier in ["S", "A", "B"]:
-                    result["tier"] = tier
-            elif line.upper().startswith("TYPE:"):
-                result["type"] = line[5:].strip().upper().replace(" ", "_")
-            elif line.upper().startswith("ARTIFACT:"):
-                result["artifact"] = line[9:].strip()
-            elif line.upper().startswith("REASON:"):
-                result["reason"] = line[7:].strip()
+        # Use regex to extract fields - handles multi-line responses properly
+        # Extract LINE: content (everything until TIER:, TYPE:, ARTIFACT:, or end)
+        line_match = re.search(
+            r'LINE:\s*(.+?)(?=\n\s*(?:TIER:|TYPE:|ARTIFACT:|REASON:)|$)',
+            response_text,
+            re.IGNORECASE | re.DOTALL
+        )
+        if line_match:
+            # Clean up the line - remove newlines, extra whitespace
+            extracted_line = line_match.group(1).strip()
+            extracted_line = re.sub(r'\s+', ' ', extracted_line)  # Normalize whitespace
+            result["line"] = extracted_line
+
+        # Extract TIER
+        tier_match = re.search(r'TIER:\s*([SAB])', response_text, re.IGNORECASE)
+        if tier_match:
+            result["tier"] = tier_match.group(1).upper()
+
+        # Extract TYPE
+        type_match = re.search(
+            r'TYPE:\s*(\w+(?:[_\s]\w+)?)',
+            response_text,
+            re.IGNORECASE
+        )
+        if type_match:
+            result["type"] = type_match.group(1).strip().upper().replace(" ", "_")
+
+        # Extract ARTIFACT
+        artifact_match = re.search(
+            r'ARTIFACT:\s*(.+?)(?=\n\s*(?:TIER:|TYPE:|LINE:|REASON:)|$)',
+            response_text,
+            re.IGNORECASE | re.DOTALL
+        )
+        if artifact_match:
+            result["artifact"] = artifact_match.group(1).strip()
+
+        # Extract REASON
+        reason_match = re.search(
+            r'REASON:\s*(.+?)(?=\n\s*(?:TIER:|TYPE:|LINE:|ARTIFACT:)|$)',
+            response_text,
+            re.IGNORECASE | re.DOTALL
+        )
+        if reason_match:
+            result["reason"] = reason_match.group(1).strip()
 
         # Clean up the line - remove quotes if present
         line = result["line"]
         if line.startswith('"') and line.endswith('"'):
             line = line[1:-1]
-        if line.startswith("'") and line.endswith("'"):
+        elif line.startswith("'") and line.endswith("'"):
             line = line[1:-1]
+        # Also handle case where only opening quote exists (truncation artifact)
+        elif line.startswith('"') and '"' not in line[1:]:
+            line = line[1:]
+        elif line.startswith("'") and "'" not in line[1:]:
+            line = line[1:]
+
+        # Final validation - ensure line ends with proper punctuation
+        line = line.strip()
+        if line and line[-1] not in '.!?':
+            line += '.'
 
         return AIGeneratedLine(
             line=line,
@@ -325,23 +364,60 @@ ARTIFACT: [the specific detail you used]"""
         """Validate and clean the generated line."""
         line = result.line
 
-        # Remove any banned words
+        # Check for banned words - if found, use fallback instead of breaking the sentence
         line_lower = line.lower()
+        has_banned_word = False
         for banned in BANNED_WORDS:
             if banned in line_lower:
-                # Try to remove the banned word and surrounding context
-                pattern = rf'\b{re.escape(banned)}\b\s*'
-                line = re.sub(pattern, '', line, flags=re.IGNORECASE)
-                logger.warning(f"Removed banned word '{banned}' from line")
+                has_banned_word = True
+                logger.warning(f"Line contains banned word '{banned}', will use fallback")
+                break
+
+        if has_banned_word:
+            return AIGeneratedLine(
+                line="Came across your company online.",
+                confidence_tier="B",
+                artifact_type="FALLBACK",
+                artifact_used="",
+                reasoning=f"Line contained banned word, regeneration needed",
+            )
 
         # Ensure line ends with proper punctuation
         line = line.strip()
-        if line and not line[-1] in '.!?':
+        if line and line[-1] not in '.!?':
             line += '.'
 
         # Ensure line doesn't start with a lowercase letter
         if line and line[0].islower():
             line = line[0].upper() + line[1:]
+
+        # Check for incomplete sentences (missing words at end)
+        # These patterns indicate likely truncation - articles/prepositions at end with no object
+        truncation_endings = [
+            r'\s+(a|an|the|to|of|in|for|with|and|or|but|that|this|your|their|its|from|by|on|at)\s*[.!?]?$',
+        ]
+        for pattern in truncation_endings:
+            if re.search(pattern, line, re.IGNORECASE):
+                logger.warning(f"Line appears truncated (ends with article/preposition): {line}")
+                return AIGeneratedLine(
+                    line="Came across your company online.",
+                    confidence_tier="B",
+                    artifact_type="FALLBACK",
+                    artifact_used="",
+                    reasoning="Generated line appeared truncated",
+                )
+
+        # Check for unclosed quotes (sign of truncation)
+        quote_count = line.count('"') + line.count("'") + line.count('"') + line.count('"')
+        if quote_count % 2 != 0:
+            logger.warning(f"Line has unclosed quotes: {line}")
+            return AIGeneratedLine(
+                line="Came across your company online.",
+                confidence_tier="B",
+                artifact_type="FALLBACK",
+                artifact_used="",
+                reasoning="Generated line had unclosed quotes",
+            )
 
         # Check word count - if too long, this is likely a bad generation
         word_count = len(line.split())
@@ -363,6 +439,17 @@ ARTIFACT: [the specific detail you used]"""
                 artifact_type="FALLBACK",
                 artifact_used="",
                 reasoning="Generated line was empty or too short",
+            )
+
+        # Check for minimum word count (catches very truncated lines)
+        if word_count < 5:
+            logger.warning(f"Line too short ({word_count} words), using fallback")
+            return AIGeneratedLine(
+                line="Came across your company online.",
+                confidence_tier="B",
+                artifact_type="FALLBACK",
+                artifact_used="",
+                reasoning="Generated line was too short",
             )
 
         return AIGeneratedLine(
