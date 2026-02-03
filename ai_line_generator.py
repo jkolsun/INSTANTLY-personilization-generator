@@ -135,6 +135,18 @@ BAD (never write):
             # Validate and clean the output
             result = self._validate_and_clean(result, company_name)
 
+            # If Claude returned generic fallback but we have location, use location-based line
+            if result.line.lower().strip().rstrip('.') == "came across your company online":
+                location = lead_data.get("location") if lead_data else None
+                if location and location.strip():
+                    result = AIGeneratedLine(
+                        line=f"Noticed your team serves {location}.",
+                        confidence_tier="B",
+                        artifact_type="LOCATION",
+                        artifact_used=location,
+                        reasoning="Using location-based fallback",
+                    )
+
             return result
 
         except anthropic.APIStatusError as e:
