@@ -50,5 +50,8 @@ htmlcov/
 *.csv
 !example.csv
 
+# SQLite database (local data)
+leads.db
+
 # Claude Code
 .claude/

@@ -39,6 +39,9 @@ try:
 except ImportError:
     GSPREAD_AVAILABLE = False
 
+# Database for lead management
+import database as db
+
 
 # Data persistence directory
 DATA_DIR = "saved_results"
@@ -188,6 +191,14 @@ def init_session_state():
         st.session_state.automation_last_run = None
     if "automation_results" not in st.session_state:
         st.session_state.automation_results = []
+
+    # Database state
+    if "use_database" not in st.session_state:
+        st.session_state.use_database = False
+    if "db_selected_campaign" not in st.session_state:
+        st.session_state.db_selected_campaign = None
+    if "db_processing" not in st.session_state:
+        st.session_state.db_processing = False
 
     # Auto-load saved results on first run
     if "results_loaded" not in st.session_state:
@@ -349,6 +360,33 @@ def render_sidebar():
 
                 if st.button("Back to Main", use_container_width=True):
                     st.session_state.use_automation = False
+                    st.rerun()
+
+        st.markdown("---")
+
+        # Database Section
+        with st.expander("📊 Lead Database", expanded=False):
+            st.caption("Manage leads with local SQLite database")
+
+            if st.button("Open Database", use_container_width=True, type="secondary"):
+                st.session_state.use_database = True
+                st.rerun()
+
+            if st.session_state.get("use_database"):
+                page = "Database"
+
+                # Show database stats
+                stats = db.get_lead_stats()
+                if stats["total"] > 0:
+                    st.metric("Total Leads", stats["total"])
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Pending", stats["pending"])
+                    with col2:
+                        st.metric("Processed", stats["processed"])
+
+                if st.button("Back to Main", use_container_width=True, key="db_back"):
+                    st.session_state.use_database = False
                     st.rerun()
 
     return page
@@ -2578,6 +2616,368 @@ def run_automation_workflow(batch_size: int):
         st.code(traceback.format_exc())
 
 
+def render_database_page():
+    """Render the Lead Database management page."""
+    st.header("📊 Lead Database")
+    st.caption("Manage leads with local SQLite storage • Import CSV • Process in batches • Export results")
+
+    # Get campaigns and stats
+    campaigns = db.get_campaigns()
+    stats = db.get_lead_stats()
+
+    # Top-level stats
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Leads", stats["total"])
+    with col2:
+        st.metric("Pending", stats["pending"])
+    with col3:
+        st.metric("Processed", stats["processed"])
+    with col4:
+        st.metric("Pushed", stats["pushed"])
+
+    st.markdown("---")
+
+    # Create tabs for different functions
+    tab1, tab2, tab3, tab4 = st.tabs(["📁 Campaigns", "⬆️ Import", "⚙️ Process", "📤 Export"])
+
+    # ========== TAB 1: Campaigns ==========
+    with tab1:
+        st.subheader("Campaign Management")
+
+        # Create new campaign
+        with st.expander("➕ Create New Campaign", expanded=not campaigns):
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                new_campaign_name = st.text_input("Campaign Name", placeholder="e.g., Q1 Outreach - HVAC")
+            with col2:
+                new_campaign_desc = st.text_input("Description (optional)", placeholder="Notes...")
+
+            if st.button("Create Campaign", type="primary", disabled=not new_campaign_name):
+                campaign_id = db.create_campaign(new_campaign_name, new_campaign_desc)
+                st.success(f"Created campaign: {new_campaign_name} (ID: {campaign_id})")
+                st.rerun()
+
+        # List existing campaigns
+        if campaigns:
+            st.markdown("### Your Campaigns")
+
+            for campaign in campaigns:
+                with st.container():
+                    col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
+
+                    with col1:
+                        st.markdown(f"**{campaign['name']}**")
+                        st.caption(f"ID: {campaign['id']} • Created: {campaign['created_at'][:10] if campaign['created_at'] else 'N/A'}")
+
+                    with col2:
+                        st.metric("Pending", campaign.get('pending_count', 0))
+
+                    with col3:
+                        st.metric("Processed", campaign.get('actual_processed', 0))
+
+                    with col4:
+                        st.metric("Pushed", campaign.get('actual_pushed', 0))
+
+                    with col5:
+                        if st.button("🗑️", key=f"del_{campaign['id']}", help="Delete campaign"):
+                            db.delete_campaign(campaign['id'])
+                            st.rerun()
+
+                    st.markdown("---")
+        else:
+            st.info("No campaigns yet. Create one above to get started.")
+
+    # ========== TAB 2: Import ==========
+    with tab2:
+        st.subheader("Import Leads from CSV")
+
+        if not campaigns:
+            st.warning("Create a campaign first before importing leads.")
+        else:
+            # Campaign selector
+            campaign_options = {c['name']: c['id'] for c in campaigns}
+            selected_campaign_name = st.selectbox(
+                "Select Campaign",
+                options=list(campaign_options.keys()),
+                key="import_campaign_select"
+            )
+            selected_campaign_id = campaign_options.get(selected_campaign_name)
+
+            # File uploader
+            uploaded_file = st.file_uploader(
+                "Upload CSV File",
+                type=["csv"],
+                help="CSV should have columns: email, company_name (required). Optional: first_name, last_name, site_url, city, state, etc."
+            )
+
+            if uploaded_file:
+                # Preview the data
+                try:
+                    df = pd.read_csv(uploaded_file)
+                    st.success(f"Found {len(df)} rows in CSV")
+
+                    # Show preview
+                    st.markdown("**Preview (first 5 rows):**")
+                    st.dataframe(df.head(), use_container_width=True)
+
+                    # Show detected columns
+                    st.markdown("**Detected columns:**")
+                    st.code(", ".join(df.columns.tolist()))
+
+                    # Import button
+                    if st.button("📥 Import to Database", type="primary"):
+                        with st.spinner("Importing leads..."):
+                            leads_data = df.to_dict('records')
+                            result = db.import_leads_from_csv(leads_data, selected_campaign_id)
+
+                        st.success(f"""
+                        **Import Complete!**
+                        - Imported: {result['imported']}
+                        - Skipped (duplicates): {result['skipped']}
+                        - Errors: {result['errors']}
+                        """)
+                        st.rerun()
+
+                except Exception as e:
+                    st.error(f"Error reading CSV: {e}")
+
+    # ========== TAB 3: Process ==========
+    with tab3:
+        st.subheader("Process Pending Leads")
+
+        if not campaigns:
+            st.warning("Create a campaign and import leads first.")
+        else:
+            # Campaign selector
+            campaign_options = {f"{c['name']} ({c.get('pending_count', 0)} pending)": c['id'] for c in campaigns}
+            selected_campaign_name = st.selectbox(
+                "Select Campaign to Process",
+                options=list(campaign_options.keys()),
+                key="process_campaign_select"
+            )
+            selected_campaign_id = campaign_options.get(selected_campaign_name)
+
+            # Get pending count for selected campaign
+            pending_count = db.get_lead_count(campaign_id=selected_campaign_id, status="pending")
+
+            if pending_count == 0:
+                st.info("No pending leads in this campaign. Import some leads first.")
+            else:
+                st.info(f"**{pending_count}** leads ready to process")
+
+                # Batch size
+                batch_size = st.slider("Batch Size", min_value=1, max_value=min(500, pending_count), value=min(50, pending_count))
+
+                # Check API keys
+                serper_ok = bool(st.session_state.get("serper_api_key"))
+                anthropic_ok = bool(st.session_state.get("anthropic_api_key"))
+
+                if not serper_ok:
+                    st.error("⚠️ Serper API key not configured")
+                if not anthropic_ok:
+                    st.error("⚠️ Anthropic API key not configured")
+
+                # Process button
+                if st.button("🚀 Process Leads", type="primary", disabled=not (serper_ok and anthropic_ok)):
+                    run_database_processing(selected_campaign_id, batch_size)
+
+            # Error leads section
+            error_count = db.get_lead_count(campaign_id=selected_campaign_id, status="error")
+            if error_count > 0:
+                st.markdown("---")
+                st.warning(f"**{error_count}** leads with errors")
+                if st.button("🔄 Reset Error Leads to Pending"):
+                    reset_count = db.reset_error_leads(selected_campaign_id)
+                    st.success(f"Reset {reset_count} leads to pending")
+                    st.rerun()
+
+    # ========== TAB 4: Export ==========
+    with tab4:
+        st.subheader("Export Processed Leads")
+
+        if not campaigns:
+            st.warning("No campaigns available.")
+        else:
+            # Campaign selector
+            campaign_options = {f"{c['name']} ({c.get('actual_processed', 0)} processed)": c['id'] for c in campaigns}
+            selected_campaign_name = st.selectbox(
+                "Select Campaign to Export",
+                options=list(campaign_options.keys()),
+                key="export_campaign_select"
+            )
+            selected_campaign_id = campaign_options.get(selected_campaign_name)
+
+            # Status filter
+            status_filter = st.radio(
+                "Export leads with status:",
+                ["processed", "pushed", "all"],
+                horizontal=True
+            )
+
+            # Get count
+            if status_filter == "all":
+                export_count = db.get_lead_count(campaign_id=selected_campaign_id)
+            else:
+                export_count = db.get_lead_count(campaign_id=selected_campaign_id, status=status_filter)
+
+            st.info(f"**{export_count}** leads to export")
+
+            if export_count > 0:
+                # Generate export
+                if st.button("📥 Generate CSV Export"):
+                    status = None if status_filter == "all" else status_filter
+                    export_data = db.export_leads_to_csv(selected_campaign_id, status)
+
+                    if export_data:
+                        df_export = pd.DataFrame(export_data)
+
+                        # Download button
+                        csv_buffer = io.StringIO()
+                        df_export.to_csv(csv_buffer, index=False)
+
+                        st.download_button(
+                            label="⬇️ Download CSV",
+                            data=csv_buffer.getvalue(),
+                            file_name=f"leads_export_{selected_campaign_id}_{datetime.now().strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                        )
+
+                        # Preview
+                        st.markdown("**Preview:**")
+                        st.dataframe(df_export.head(10), use_container_width=True)
+
+            # View leads section
+            st.markdown("---")
+            st.markdown("### View Leads")
+
+            view_status = st.selectbox("Filter by status:", ["all", "pending", "processed", "pushed", "error"])
+            view_limit = st.slider("Show", min_value=10, max_value=100, value=25, key="view_limit")
+
+            status_param = None if view_status == "all" else view_status
+            leads = db.get_leads(campaign_id=selected_campaign_id, status=status_param, limit=view_limit)
+
+            if leads:
+                # Convert to dataframe for display
+                df_leads = pd.DataFrame(leads)
+                display_cols = ["email", "company_name", "status", "personalization_line", "confidence_tier", "created_at"]
+                available_cols = [c for c in display_cols if c in df_leads.columns]
+                st.dataframe(df_leads[available_cols], use_container_width=True)
+            else:
+                st.info("No leads found with current filters.")
+
+
+def run_database_processing(campaign_id: str, batch_size: int):
+    """Process pending leads from the database."""
+    # Get pending leads
+    pending_leads = db.get_pending_leads(campaign_id, limit=batch_size)
+
+    if not pending_leads:
+        st.warning("No pending leads to process")
+        return
+
+    st.info(f"Processing {len(pending_leads)} leads...")
+
+    # Initialize clients
+    serper = SerperClient(st.session_state.serper_api_key)
+    ai_generator = AILineGenerator(st.session_state.anthropic_api_key)
+
+    # Progress tracking
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    stats = {"S": 0, "A": 0, "B": 0, "errors": 0}
+
+    for idx, lead in enumerate(pending_leads):
+        company_name = lead["company_name"]
+        status_text.text(f"Processing {idx + 1}/{len(pending_leads)}: {company_name}")
+
+        try:
+            # Build location string
+            location = ""
+            if lead.get("city") and lead.get("state"):
+                location = f"{lead['city']}, {lead['state']}"
+            elif lead.get("city"):
+                location = lead["city"]
+            elif lead.get("state"):
+                location = lead["state"]
+
+            # Serper research
+            domain = lead.get("site_url", "")
+            serper_description = ""
+            try:
+                company_info = serper.get_company_info(company_name, domain, location)
+                serper_description = extract_artifacts_from_serper(company_info)
+            except Exception as e:
+                logging.warning(f"Serper lookup failed for {company_name}: {e}")
+
+            # Build lead_data for AI generator
+            lead_data = {
+                "location": location,
+                "technologies": lead.get("technologies"),
+                "keywords": lead.get("keywords"),
+                "person_title": lead.get("job_title"),
+            }
+
+            if lead.get("annual_revenue"):
+                lead_data["annual_revenue"] = lead["annual_revenue"]
+            if lead.get("num_locations"):
+                lead_data["num_locations"] = lead["num_locations"]
+            if lead.get("subsidiary_of"):
+                lead_data["subsidiary_of"] = lead["subsidiary_of"]
+
+            # Generate personalization line
+            result = ai_generator.generate_line(
+                company_name=company_name,
+                serper_data=serper_description,
+                lead_data=lead_data,
+            )
+
+            # Update lead in database
+            db.update_lead_status(
+                lead_id=lead["id"],
+                status="processed",
+                personalization_line=result.line,
+                artifact_type=result.artifact_type,
+                confidence_tier=result.confidence_tier,
+                artifact_used=result.artifact_used,
+                reasoning=result.reasoning,
+            )
+
+            # Update stats
+            tier = result.confidence_tier
+            if tier in stats:
+                stats[tier] += 1
+
+        except Exception as e:
+            logging.error(f"Error processing {company_name}: {e}")
+            db.update_lead_status(
+                lead_id=lead["id"],
+                status="error",
+                error_message=str(e)[:200],
+            )
+            stats["errors"] += 1
+
+        # Update progress
+        progress_bar.progress((idx + 1) / len(pending_leads))
+
+    # Complete
+    progress_bar.progress(100)
+    status_text.empty()
+
+    # Show results
+    total_processed = stats["S"] + stats["A"] + stats["B"]
+    st.success(f"""
+    **Processing Complete!**
+    - Total processed: {total_processed}
+    - S-Tier: {stats['S']}
+    - A-Tier: {stats['A']}
+    - B-Tier: {stats['B']}
+    - Errors: {stats['errors']}
+    """)
+
+    st.rerun()
+
+
 def main():
     """Main application entry point."""
     init_session_state()
@@ -2603,6 +3003,9 @@ def main():
     # Automation
     elif page == "Automation":
         render_automation_page()
+    # Database
+    elif page == "Database":
+        render_database_page()
 
 
 if __name__ == "__main__":
