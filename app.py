@@ -886,73 +886,257 @@ def push_to_instantly(leads: List[Dict], instantly_campaign_id: str, db_campaign
 def render_settings():
     """Render the settings page."""
     st.markdown('<h1 class="main-header">Settings</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Configure API keys and preferences</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Configure your integrations and API connections</p>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
+    # Connection Status Overview
+    st.markdown("### Connection Status")
+    status_cols = st.columns(4)
 
-    with col1:
-        st.markdown("### API Keys")
-
-        # Anthropic
-        with st.expander("Claude AI (Anthropic)", expanded=not st.session_state.anthropic_connected):
-            current = st.session_state.anthropic_api_key
-            masked = f"{current[:10]}...{current[-4:]}" if len(current) > 14 else "Not set"
-            st.text(f"Current: {masked}")
-
-            new_key = st.text_input("New API Key", type="password", key="anthropic_key")
-            if st.button("Update", key="update_anthropic"):
-                if test_anthropic_key(new_key):
-                    st.session_state.anthropic_api_key = new_key
-                    st.session_state.anthropic_connected = True
-                    st.success("Connected!")
-                else:
-                    st.error("Invalid API key")
-
-        # Instantly
-        with st.expander("Instantly", expanded=not st.session_state.instantly_connected):
-            current = st.session_state.instantly_api_key
-            masked = f"{current[:10]}...{current[-4:]}" if len(current) > 14 else "Not set"
-            st.text(f"Current: {masked}")
-
-            new_key = st.text_input("New API Key", type="password", key="instantly_key")
-            if st.button("Update", key="update_instantly"):
-                try:
-                    client = InstantlyClient(new_key)
-                    client.list_campaigns()
-                    st.session_state.instantly_api_key = new_key
-                    st.session_state.instantly_connected = True
-                    st.success("Connected!")
-                except:
-                    st.error("Invalid API key")
-
-        # Serper
-        with st.expander("Serper (Google Search)"):
-            current = st.session_state.serper_api_key
-            masked = f"{current[:10]}...{current[-4:]}" if len(current) > 14 else "Not set"
-            st.text(f"Current: {masked}")
-
-            new_key = st.text_input("New API Key", type="password", key="serper_key")
-            if st.button("Update", key="update_serper"):
-                st.session_state.serper_api_key = new_key
-                st.success("Updated!")
-
-    with col2:
-        st.markdown("### Database")
-
-        db_type = db.get_database_type()
-
-        if db_type == "supabase":
-            st.success(" Using Supabase (Cloud)")
-            st.info("Data persists across deployments")
+    with status_cols[0]:
+        if st.session_state.anthropic_connected:
+            st.success("Claude AI")
         else:
-            st.warning(" Using SQLite (Local)")
-            st.info("Set SUPABASE_URL and SUPABASE_KEY environment variables for cloud storage")
+            st.error("Claude AI")
 
-        st.markdown("---")
+    with status_cols[1]:
+        if st.session_state.serper_api_key:
+            st.success("Serper")
+        else:
+            st.warning("Serper")
 
-        st.markdown("### Supabase Setup")
-        st.code("""
--- Run in Supabase SQL Editor:
+    with status_cols[2]:
+        if st.session_state.instantly_connected:
+            st.success("Instantly")
+        else:
+            st.warning("Instantly")
+
+    with status_cols[3]:
+        if db.get_database_type() == "supabase":
+            st.success("Supabase")
+        else:
+            st.info("SQLite")
+
+    st.markdown("---")
+
+    # Tabs for different settings categories
+    tab1, tab2, tab3 = st.tabs(["API Keys", "Database", "Getting Started"])
+
+    # ===== API Keys Tab =====
+    with tab1:
+        st.markdown("### Configure Your API Integrations")
+        st.caption("Add your API keys below. Keys are stored in your session and can also be set via environment variables.")
+
+        # Two column layout for APIs
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Claude AI (Required)
+            st.markdown("#### Claude AI (Anthropic)")
+            st.markdown("""
+            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <span style="color: #10b981; font-weight: bold;">REQUIRED</span> - Powers AI personalization
+            </div>
+            """, unsafe_allow_html=True)
+
+            current = st.session_state.anthropic_api_key
+            if current:
+                masked = f"`{current[:8]}...{current[-4:]}`"
+                st.markdown(f"**Current:** {masked}")
+            else:
+                st.markdown("**Current:** Not configured")
+
+            with st.form("anthropic_form"):
+                new_key = st.text_input(
+                    "API Key",
+                    type="password",
+                    placeholder="sk-ant-api03-...",
+                    help="Your Anthropic API key starting with 'sk-ant-'"
+                )
+                submitted = st.form_submit_button("Save & Test", type="primary", use_container_width=True)
+
+                if submitted and new_key:
+                    with st.spinner("Testing connection..."):
+                        if test_anthropic_key(new_key):
+                            st.session_state.anthropic_api_key = new_key
+                            st.session_state.anthropic_connected = True
+                            st.success("Connected successfully!")
+                            st.rerun()
+                        else:
+                            st.error("Invalid API key. Please check and try again.")
+
+            with st.expander("How to get your API key"):
+                st.markdown("""
+                1. Go to [console.anthropic.com](https://console.anthropic.com)
+                2. Sign up or log in to your account
+                3. Navigate to **API Keys** in the sidebar
+                4. Click **Create Key** and copy it
+                5. Paste it above
+
+                **Cost:** ~$0.25 per 1,000 leads (using Claude Haiku)
+                """)
+
+            st.markdown("---")
+
+            # Serper (Required)
+            st.markdown("#### Serper (Google Search)")
+            st.markdown("""
+            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <span style="color: #10b981; font-weight: bold;">REQUIRED</span> - Powers company research
+            </div>
+            """, unsafe_allow_html=True)
+
+            current = st.session_state.serper_api_key
+            if current:
+                masked = f"`{current[:8]}...{current[-4:]}`"
+                st.markdown(f"**Current:** {masked}")
+            else:
+                st.markdown("**Current:** Not configured")
+
+            with st.form("serper_form"):
+                new_key = st.text_input(
+                    "API Key",
+                    type="password",
+                    placeholder="your-serper-api-key",
+                    help="Your Serper.dev API key"
+                )
+                submitted = st.form_submit_button("Save", type="primary", use_container_width=True)
+
+                if submitted and new_key:
+                    st.session_state.serper_api_key = new_key
+                    st.success("Saved!")
+                    st.rerun()
+
+            with st.expander("How to get your API key"):
+                st.markdown("""
+                1. Go to [serper.dev](https://serper.dev)
+                2. Sign up for a free account
+                3. You'll get **2,500 free searches** to start
+                4. Copy your API key from the dashboard
+                5. Paste it above
+
+                **Cost:** $50 for 50,000 searches (after free tier)
+                """)
+
+        with col2:
+            # Instantly (Optional)
+            st.markdown("#### Instantly")
+            st.markdown("""
+            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <span style="color: #6366f1; font-weight: bold;">OPTIONAL</span> - Push leads to campaigns
+            </div>
+            """, unsafe_allow_html=True)
+
+            current = st.session_state.instantly_api_key
+            if current:
+                masked = f"`{current[:8]}...{current[-4:]}`"
+                st.markdown(f"**Current:** {masked}")
+            else:
+                st.markdown("**Current:** Not configured")
+
+            with st.form("instantly_form"):
+                new_key = st.text_input(
+                    "API Key",
+                    type="password",
+                    placeholder="your-instantly-api-key",
+                    help="Your Instantly API key"
+                )
+                submitted = st.form_submit_button("Save & Test", type="primary", use_container_width=True)
+
+                if submitted and new_key:
+                    with st.spinner("Testing connection..."):
+                        try:
+                            client = InstantlyClient(new_key)
+                            campaigns = client.list_campaigns()
+                            st.session_state.instantly_api_key = new_key
+                            st.session_state.instantly_connected = True
+                            st.session_state.instantly_campaigns = campaigns
+                            st.success(f"Connected! Found {len(campaigns)} campaigns.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Connection failed: {str(e)[:100]}")
+
+            with st.expander("How to get your API key"):
+                st.markdown("""
+                1. Log in to [instantly.ai](https://instantly.ai)
+                2. Go to **Settings** → **Integrations**
+                3. Find **API** section
+                4. Copy your API key
+                5. Paste it above
+
+                **Note:** Requires an Instantly subscription
+                """)
+
+            st.markdown("---")
+
+            # Environment Variables Info
+            st.markdown("#### Environment Variables")
+            st.markdown("""
+            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <span style="color: #94a3b8; font-weight: bold;">RECOMMENDED</span> - For production deployment
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown("Set these in Railway/Heroku/your hosting platform:")
+
+            st.code("""
+# Required
+ANTHROPIC_API_KEY=sk-ant-api03-...
+SERPER_API_KEY=your-serper-key
+
+# Optional
+INSTANTLY_API_KEY=your-instantly-key
+
+# Database (for persistence)
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_KEY=your-anon-key
+            """, language="bash")
+
+    # ===== Database Tab =====
+    with tab2:
+        st.markdown("### Database Configuration")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### Current Status")
+
+            db_type = db.get_database_type()
+
+            if db_type == "supabase":
+                st.success("Using Supabase (Cloud Database)")
+                st.markdown("""
+                - Data persists across deployments
+                - Accessible from anywhere
+                - Ready for production
+                """)
+            else:
+                st.warning("Using SQLite (Local Database)")
+                st.markdown("""
+                - Data stored locally only
+                - Resets on deployment (Railway/Heroku)
+                - Good for development/testing
+                """)
+
+            st.markdown("---")
+
+            st.markdown("#### Why Supabase?")
+            st.markdown("""
+            - **Free tier:** 500MB storage, unlimited API requests
+            - **Persistent:** Data survives deployments
+            - **Fast:** PostgreSQL with global CDN
+            - **Dashboard:** View/edit data in browser
+            """)
+
+        with col2:
+            st.markdown("#### Supabase Setup")
+
+            st.markdown("**Step 1:** Create a free project")
+            st.markdown("Go to [supabase.com](https://supabase.com) and create a new project")
+
+            st.markdown("**Step 2:** Run this SQL in the SQL Editor")
+
+            st.code("""
+-- Create tables for Bright Automations
 
 CREATE TABLE campaigns (
     id TEXT PRIMARY KEY,
@@ -969,30 +1153,156 @@ CREATE TABLE leads (
     last_name TEXT,
     job_title TEXT,
     site_url TEXT,
+    linkedin_url TEXT,
     city TEXT,
     state TEXT,
+    technologies TEXT,
+    keywords TEXT,
+    annual_revenue NUMERIC,
+    num_locations INTEGER,
+    subsidiary_of TEXT,
     status TEXT DEFAULT 'pending',
     personalization_line TEXT,
     artifact_type TEXT,
     confidence_tier TEXT,
-    campaign_id TEXT REFERENCES campaigns(id),
+    artifact_used TEXT,
+    reasoning TEXT,
+    campaign_id TEXT REFERENCES campaigns(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     processed_at TIMESTAMPTZ,
+    pushed_at TIMESTAMPTZ,
+    error_message TEXT,
     UNIQUE(email, campaign_id)
 );
 
 CREATE INDEX idx_leads_status ON leads(status);
 CREATE INDEX idx_leads_campaign ON leads(campaign_id);
-        """, language="sql")
+            """, language="sql")
 
-        st.markdown("### About")
+            st.markdown("**Step 3:** Add environment variables")
+            st.markdown("""
+            In your hosting platform (Railway, etc.):
+            - `SUPABASE_URL` - Project URL from Settings → API
+            - `SUPABASE_KEY` - `anon` `public` key from Settings → API
+            """)
+
+    # ===== Getting Started Tab =====
+    with tab3:
+        st.markdown("### Quick Start Guide")
+
         st.markdown("""
-        **Bright Automations** v2.0
-
-        Lead personalization platform for cold email automation.
-
-        [brightautomations.org](https://brightautomations.org)
+        Follow these steps to get up and running in under 5 minutes.
         """)
+
+        # Step 1
+        st.markdown("#### Step 1: Get Your API Keys")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("""
+            **Claude AI (Required)**
+            1. Visit [console.anthropic.com](https://console.anthropic.com)
+            2. Create account → Get API key
+            3. Cost: ~$0.25 per 1,000 leads
+            """)
+
+        with col2:
+            st.markdown("""
+            **Serper (Required)**
+            1. Visit [serper.dev](https://serper.dev)
+            2. Sign up → Get 2,500 free searches
+            3. Copy API key from dashboard
+            """)
+
+        st.markdown("---")
+
+        # Step 2
+        st.markdown("#### Step 2: Add Keys to Settings")
+        st.markdown("""
+        Paste your API keys in the **API Keys** tab above. Click "Save & Test" to verify they work.
+        """)
+
+        st.markdown("---")
+
+        # Step 3
+        st.markdown("#### Step 3: Create Your First Campaign")
+        st.markdown("""
+        1. Go to **Lead Manager** → **Campaigns** tab
+        2. Enter a campaign name (e.g., "Q1 HVAC Outreach")
+        3. Click **Create**
+        """)
+
+        st.markdown("---")
+
+        # Step 4
+        st.markdown("#### Step 4: Import Leads")
+        st.markdown("""
+        1. Go to **Lead Manager** → **Import** tab
+        2. Select your campaign
+        3. Upload a CSV with columns:
+           - `email` (required)
+           - `company_name` (required)
+           - `first_name`, `last_name`, `site_url`, `city`, `state` (optional)
+        4. Click **Import to Database**
+        """)
+
+        st.markdown("---")
+
+        # Step 5
+        st.markdown("#### Step 5: Process Leads")
+        st.markdown("""
+        1. Go to **Lead Manager** → **Process** tab
+        2. Select campaign and batch size
+        3. Click **Start Processing**
+        4. Watch as AI generates personalized lines!
+        """)
+
+        st.markdown("---")
+
+        # Step 6
+        st.markdown("#### Step 6: Export or Push to Instantly")
+        st.markdown("""
+        **Option A: Export CSV**
+        - Go to **Lead Manager** → **Export** tab
+        - Download CSV with personalized lines
+        - Upload manually to your email tool
+
+        **Option B: Push to Instantly**
+        - Go to **Instantly Sync**
+        - Select leads and target campaign
+        - Click **Push to Instantly**
+        """)
+
+        st.markdown("---")
+
+        st.markdown("### Need Help?")
+        st.markdown("""
+        - **Documentation:** [brightautomations.org/docs](https://brightautomations.org)
+        - **Support:** support@brightautomations.org
+        """)
+
+        st.markdown("---")
+
+        # About section
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.markdown("### About Bright Automations")
+            st.markdown("""
+            Bright Automations helps agencies and sales teams personalize cold outreach at scale.
+
+            Our AI researches each company, finds impressive facts (awards, reviews, years in business),
+            and writes custom opening lines that get replies.
+
+            **v2.0** | Built with Claude AI
+            """)
+
+        with col2:
+            st.markdown("### Links")
+            st.markdown("""
+            - [Website](https://brightautomations.org)
+            - [Documentation](https://brightautomations.org/docs)
+            - [Support](mailto:support@brightautomations.org)
+            """)
 
 
 # ========== Main Entry Point ==========
