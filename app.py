@@ -33,6 +33,12 @@ from instantly_client import InstantlyClient
 from serper_client import SerperClient, extract_artifacts_from_serper
 from ai_line_generator import AILineGenerator, test_api_key as test_anthropic_key
 
+# Optional: Google Sheets for automation
+try:
+    from google_sheets_client import GoogleSheetsClient, parse_spreadsheet_id, GSPREAD_AVAILABLE
+except ImportError:
+    GSPREAD_AVAILABLE = False
+
 
 # Data persistence directory
 DATA_DIR = "saved_results"
@@ -160,6 +166,28 @@ def init_session_state():
     # Processing state for cancel functionality
     if "processing_cancelled" not in st.session_state:
         st.session_state.processing_cancelled = False
+
+    # Automation state
+    if "use_automation" not in st.session_state:
+        st.session_state.use_automation = False
+    if "gsheet_connected" not in st.session_state:
+        st.session_state.gsheet_connected = False
+    if "gsheet_credentials" not in st.session_state:
+        st.session_state.gsheet_credentials = None
+    if "gsheet_spreadsheet_id" not in st.session_state:
+        st.session_state.gsheet_spreadsheet_id = ""
+    if "gsheet_sheet_name" not in st.session_state:
+        st.session_state.gsheet_sheet_name = "Lead Queue"
+    if "gsheet_queue_stats" not in st.session_state:
+        st.session_state.gsheet_queue_stats = {}
+    if "automation_campaign_id" not in st.session_state:
+        st.session_state.automation_campaign_id = ""
+    if "automation_batch_size" not in st.session_state:
+        st.session_state.automation_batch_size = 150
+    if "automation_last_run" not in st.session_state:
+        st.session_state.automation_last_run = None
+    if "automation_results" not in st.session_state:
+        st.session_state.automation_results = []
 
     # Auto-load saved results on first run
     if "results_loaded" not in st.session_state:
@@ -297,6 +325,30 @@ def render_sidebar():
 
                 if st.button("Back to Instantly Tools", use_container_width=True):
                     st.session_state.use_csv_tools = False
+                    st.rerun()
+
+        st.markdown("---")
+
+        # Automation Section
+        with st.expander("🤖 Automation", expanded=False):
+            st.caption("Automated lead processing from Google Sheets")
+
+            if st.button("Open Automation", use_container_width=True, type="secondary"):
+                st.session_state.use_automation = True
+                st.rerun()
+
+            if st.session_state.get("use_automation"):
+                page = "Automation"
+
+                # Show automation status
+                if st.session_state.get("gsheet_connected"):
+                    st.success("✓ Google Sheets connected")
+                    if st.session_state.get("gsheet_queue_stats"):
+                        stats = st.session_state.gsheet_queue_stats
+                        st.metric("Pending Leads", stats.get("pending", 0))
+
+                if st.button("Back to Main", use_container_width=True):
+                    st.session_state.use_automation = False
                     st.rerun()
 
     return page
@@ -2126,6 +2178,406 @@ def render_unibox_page():
     st.caption("This feature is under development. Stay tuned!")
 
 
+def render_automation_page():
+    """Render the Automation page for Google Sheets → Instantly workflow."""
+    st.header("🤖 Lead Automation")
+    st.caption("Automatically pull leads from Google Sheets, personalize, and push to Instantly")
+
+    # Check if gspread is available
+    if not GSPREAD_AVAILABLE:
+        st.error("Google Sheets integration requires additional packages.")
+        st.code("pip install gspread google-auth", language="bash")
+        st.stop()
+
+    # Check API keys
+    if not st.session_state.anthropic_connected:
+        st.warning("⚠️ Connect Claude AI in the main settings to use automation")
+    if not st.session_state.serper_api_key:
+        st.warning("⚠️ Serper API key required for research")
+
+    st.markdown("---")
+
+    # ========== STEP 1: GOOGLE SHEETS CONNECTION ==========
+    st.markdown("### Step 1: Connect Google Sheets")
+
+    with st.expander("Google Sheets Setup", expanded=not st.session_state.gsheet_connected):
+        st.markdown("""
+        **Setup Instructions:**
+        1. Create a Google Cloud service account
+        2. Download the JSON credentials file
+        3. Share your Google Sheet with the service account email
+        4. Paste the JSON credentials below
+        """)
+
+        creds_json = st.text_area(
+            "Service Account JSON",
+            height=150,
+            placeholder='Paste your service account JSON here...',
+            help="The full JSON from your service account credentials file",
+        )
+
+        spreadsheet_input = st.text_input(
+            "Google Sheet URL or ID",
+            value=st.session_state.gsheet_spreadsheet_id,
+            placeholder="https://docs.google.com/spreadsheets/d/YOUR_ID/edit or just the ID",
+        )
+
+        sheet_name = st.text_input(
+            "Sheet/Tab Name",
+            value=st.session_state.gsheet_sheet_name,
+            help="Name of the tab containing leads (default: Lead Queue)",
+        )
+
+        if st.button("Connect to Google Sheets", type="primary"):
+            if not creds_json:
+                st.error("Please paste your service account JSON")
+            elif not spreadsheet_input:
+                st.error("Please enter your Google Sheet URL or ID")
+            else:
+                try:
+                    import json as json_lib
+                    creds_dict = json_lib.loads(creds_json)
+                    spreadsheet_id = parse_spreadsheet_id(spreadsheet_input)
+
+                    with st.spinner("Connecting..."):
+                        client = GoogleSheetsClient(credentials_dict=creds_dict)
+
+                        # Test connection by getting stats
+                        stats = client.get_queue_stats(spreadsheet_id, sheet_name)
+
+                        st.session_state.gsheet_connected = True
+                        st.session_state.gsheet_credentials = creds_dict
+                        st.session_state.gsheet_spreadsheet_id = spreadsheet_id
+                        st.session_state.gsheet_sheet_name = sheet_name
+                        st.session_state.gsheet_queue_stats = stats
+
+                        st.success(f"✓ Connected! Found {stats['total']} total leads, {stats['pending']} pending")
+                        st.rerun()
+
+                except json_lib.JSONDecodeError:
+                    st.error("Invalid JSON format. Please paste the full service account JSON.")
+                except Exception as e:
+                    st.error(f"Connection failed: {str(e)}")
+
+    # Show connection status
+    if st.session_state.gsheet_connected:
+        st.success("✓ Google Sheets connected")
+
+        # Refresh stats button
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("🔄 Refresh"):
+                try:
+                    client = GoogleSheetsClient(credentials_dict=st.session_state.gsheet_credentials)
+                    stats = client.get_queue_stats(
+                        st.session_state.gsheet_spreadsheet_id,
+                        st.session_state.gsheet_sheet_name
+                    )
+                    st.session_state.gsheet_queue_stats = stats
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Refresh failed: {e}")
+
+        # Show queue stats
+        stats = st.session_state.gsheet_queue_stats
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Pending", stats.get("pending", 0))
+        with col2:
+            st.metric("Processed", stats.get("processed", 0))
+        with col3:
+            st.metric("Errors", stats.get("error", 0))
+        with col4:
+            st.metric("Total", stats.get("total", 0))
+
+    st.markdown("---")
+
+    # ========== STEP 2: INSTANTLY CAMPAIGN ==========
+    st.markdown("### Step 2: Select Instantly Campaign")
+
+    if not st.session_state.instantly_connected:
+        st.warning("Connect to Instantly in the sidebar to select a campaign")
+    else:
+        campaigns = st.session_state.instantly_campaigns
+        if campaigns:
+            campaign_options = {c["name"]: c["id"] for c in campaigns}
+            selected_campaign = st.selectbox(
+                "Target Campaign",
+                options=list(campaign_options.keys()),
+                help="Leads will be pushed to this campaign",
+            )
+            if selected_campaign:
+                st.session_state.automation_campaign_id = campaign_options[selected_campaign]
+                st.caption(f"Campaign ID: {st.session_state.automation_campaign_id}")
+        else:
+            st.warning("No campaigns found. Create a campaign in Instantly first.")
+
+    st.markdown("---")
+
+    # ========== STEP 3: RUN AUTOMATION ==========
+    st.markdown("### Step 3: Run Automation")
+
+    batch_size = st.number_input(
+        "Batch Size",
+        min_value=1,
+        max_value=500,
+        value=st.session_state.automation_batch_size,
+        help="Number of leads to process per run (max 500)",
+    )
+    st.session_state.automation_batch_size = batch_size
+
+    # Check if ready to run
+    ready = (
+        st.session_state.gsheet_connected and
+        st.session_state.anthropic_connected and
+        st.session_state.instantly_connected and
+        st.session_state.automation_campaign_id
+    )
+
+    if not ready:
+        st.info("Complete all steps above to enable automation")
+        missing = []
+        if not st.session_state.gsheet_connected:
+            missing.append("Google Sheets")
+        if not st.session_state.anthropic_connected:
+            missing.append("Claude AI")
+        if not st.session_state.instantly_connected:
+            missing.append("Instantly")
+        if not st.session_state.automation_campaign_id:
+            missing.append("Campaign selection")
+        st.warning(f"Missing: {', '.join(missing)}")
+
+    # Confirmation
+    pending_count = st.session_state.gsheet_queue_stats.get("pending", 0)
+    actual_batch = min(batch_size, pending_count)
+
+    if pending_count == 0:
+        st.warning("No pending leads in queue. Add leads to your Google Sheet with status='pending'")
+    elif ready:
+        confirm = st.checkbox(
+            f"I confirm: Process {actual_batch} leads and push to Instantly",
+            key="automation_confirm",
+        )
+
+        if st.button("🚀 Run Automation", type="primary", disabled=not confirm, use_container_width=True):
+            run_automation_workflow(actual_batch)
+
+    # Show last run results
+    if st.session_state.automation_results:
+        st.markdown("---")
+        st.markdown("### Last Run Results")
+
+        results = st.session_state.automation_results
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Processed", len(results))
+        with col2:
+            high_quality = sum(1 for r in results if r.get("confidence_tier") in ["S", "A"])
+            st.metric("High Quality", f"{high_quality} ({high_quality/len(results)*100:.0f}%)")
+        with col3:
+            if st.session_state.automation_last_run:
+                st.metric("Last Run", st.session_state.automation_last_run.strftime("%H:%M"))
+
+        # Results table
+        with st.expander("View Results", expanded=False):
+            df_results = pd.DataFrame(results)
+            display_cols = ["company_name", "personalization_line", "confidence_tier", "artifact_type"]
+            display_cols = [c for c in display_cols if c in df_results.columns]
+            st.dataframe(df_results[display_cols], use_container_width=True)
+
+
+def run_automation_workflow(batch_size: int):
+    """Execute the full automation workflow."""
+    st.info(f"Starting automation for {batch_size} leads...")
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    stats_display = st.empty()
+
+    try:
+        # Initialize clients
+        gsheet_client = GoogleSheetsClient(credentials_dict=st.session_state.gsheet_credentials)
+        serper = SerperClient(st.session_state.serper_api_key)
+        ai_generator = AILineGenerator(st.session_state.anthropic_api_key)
+        instantly = InstantlyClient(st.session_state.instantly_api_key)
+
+        # Step 1: Pull leads from queue
+        status_text.markdown("**Step 1:** Pulling leads from Google Sheets...")
+        leads = gsheet_client.get_pending_leads(
+            st.session_state.gsheet_spreadsheet_id,
+            st.session_state.gsheet_sheet_name,
+            limit=batch_size,
+        )
+
+        if not leads:
+            st.warning("No pending leads found in queue")
+            return
+
+        st.success(f"Pulled {len(leads)} leads from queue")
+        progress_bar.progress(10)
+
+        # Step 2: Process each lead
+        status_text.markdown("**Step 2:** Personalizing leads...")
+        results = []
+        row_numbers = []
+        stats = {"S": 0, "A": 0, "B": 0, "errors": 0}
+
+        for idx, lead in enumerate(leads):
+            try:
+                company_name = lead.get("company_name", "Unknown")
+                domain = lead.get("site_url", "") or lead.get("website", "")
+                location = f"{lead.get('city', '')}, {lead.get('state', '')}".strip(", ")
+
+                status_text.markdown(f"**Processing:** {company_name} ({idx + 1}/{len(leads)})")
+
+                # Serper research
+                serper_description = ""
+                try:
+                    company_info = serper.get_company_info(company_name, domain, location)
+                    serper_description = extract_artifacts_from_serper(company_info)
+                except Exception:
+                    pass
+
+                # Build lead data
+                lead_data = {
+                    "location": location,
+                    "technologies": lead.get("technologies", ""),
+                    "keywords": lead.get("keywords", ""),
+                    "person_title": lead.get("job_title", ""),
+                }
+
+                if lead.get("annual_revenue"):
+                    lead_data["annual_revenue"] = lead.get("annual_revenue")
+                if lead.get("num_locations"):
+                    lead_data["num_locations"] = lead.get("num_locations")
+
+                # Generate personalization
+                result = ai_generator.generate_line(
+                    company_name=company_name,
+                    serper_data=serper_description,
+                    lead_data=lead_data,
+                )
+
+                # Store result
+                lead_result = {
+                    **lead,
+                    "personalization_line": result.line,
+                    "confidence_tier": result.confidence_tier,
+                    "artifact_type": result.artifact_type,
+                    "artifact_used": result.artifact_used,
+                }
+                results.append(lead_result)
+                row_numbers.append(lead.get("_row_number"))
+
+                # Update stats
+                if result.confidence_tier in stats:
+                    stats[result.confidence_tier] += 1
+
+                # Update progress
+                progress = 10 + int((idx + 1) / len(leads) * 60)
+                progress_bar.progress(progress)
+
+                # Update stats display
+                stats_display.markdown(f"S: {stats['S']} | A: {stats['A']} | B: {stats['B']}")
+
+            except Exception as e:
+                stats["errors"] += 1
+                results.append({
+                    **lead,
+                    "personalization_line": "Came across your company online.",
+                    "confidence_tier": "B",
+                    "artifact_type": "ERROR",
+                    "error": str(e),
+                })
+                row_numbers.append(lead.get("_row_number"))
+
+        progress_bar.progress(70)
+
+        # Step 3: Push to Instantly
+        status_text.markdown("**Step 3:** Pushing leads to Instantly...")
+
+        instantly_leads = []
+        for r in results:
+            instantly_leads.append({
+                "email": r.get("email", ""),
+                "first_name": r.get("first_name", ""),
+                "last_name": r.get("last_name", ""),
+                "company_name": r.get("company_name", ""),
+                "personalization": r.get("personalization_line", ""),
+                "custom_variables": {
+                    "personalization_line": r.get("personalization_line", ""),
+                    "artifact_type": r.get("artifact_type", ""),
+                    "confidence_tier": r.get("confidence_tier", ""),
+                },
+            })
+
+        # Push to campaign
+        try:
+            push_result = instantly.add_leads_to_campaign(
+                campaign_id=st.session_state.automation_campaign_id,
+                leads=instantly_leads,
+            )
+            st.success(f"✓ Pushed {len(instantly_leads)} leads to Instantly")
+        except Exception as e:
+            st.error(f"Failed to push to Instantly: {e}")
+
+        progress_bar.progress(85)
+
+        # Step 4: Update Google Sheet
+        status_text.markdown("**Step 4:** Updating queue status...")
+
+        try:
+            personalization_data = [
+                {
+                    "personalization_line": r.get("personalization_line", ""),
+                    "confidence_tier": r.get("confidence_tier", ""),
+                    "artifact_type": r.get("artifact_type", ""),
+                }
+                for r in results
+            ]
+
+            gsheet_client.mark_leads_processed(
+                st.session_state.gsheet_spreadsheet_id,
+                st.session_state.gsheet_sheet_name,
+                [rn for rn in row_numbers if rn],
+                personalization_data,
+            )
+            st.success("✓ Updated Google Sheet queue")
+        except Exception as e:
+            st.warning(f"Could not update sheet: {e}")
+
+        progress_bar.progress(100)
+
+        # Store results
+        st.session_state.automation_results = results
+        st.session_state.automation_last_run = datetime.now()
+
+        # Refresh queue stats
+        try:
+            new_stats = gsheet_client.get_queue_stats(
+                st.session_state.gsheet_spreadsheet_id,
+                st.session_state.gsheet_sheet_name
+            )
+            st.session_state.gsheet_queue_stats = new_stats
+        except Exception:
+            pass
+
+        # Final summary
+        st.markdown("---")
+        st.success(f"""
+        ✅ **Automation Complete!**
+        - Processed: {len(results)} leads
+        - High Quality (S+A): {stats['S'] + stats['A']}
+        - Pushed to Instantly: {len(instantly_leads)}
+        - Errors: {stats['errors']}
+        """)
+
+    except Exception as e:
+        st.error(f"Automation failed: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
+
+
 def main():
     """Main application entry point."""
     init_session_state()
@@ -2148,6 +2600,9 @@ def main():
         render_results_page()
     elif page == "CSV:Artifact Inspector":
         render_inspector_page()
+    # Automation
+    elif page == "Automation":
+        render_automation_page()
 
 
 if __name__ == "__main__":

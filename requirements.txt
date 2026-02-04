@@ -7,3 +7,9 @@ streamlit>=1.28.0
 plotly>=5.18.0
 flask>=2.3.0
 anthropic>=0.40.0
+# Automation dependencies
+gspread>=5.12.0
+google-auth>=2.25.0
+# API dependencies (optional)
+fastapi>=0.109.0
+uvicorn>=0.27.0
