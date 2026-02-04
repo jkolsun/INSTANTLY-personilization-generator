@@ -1,35 +1,55 @@
 """
-SQLite database for lead management.
+Unified database module for lead management.
 
-Provides local storage for leads with status tracking, personalization results,
-and push history. Designed to be migrated to Supabase later.
+Automatically uses Supabase if configured, falls back to SQLite for local development.
 """
+import os
 import sqlite3
 import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from pathlib import Path
-import json
 
 logger = logging.getLogger(__name__)
 
-# Database file location
+# Check for Supabase configuration
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_KEY)
+
+# Import Supabase client if available
+_supabase_client = None
+if USE_SUPABASE:
+    try:
+        from supabase_client import SupabaseClient, is_supabase_configured
+        if is_supabase_configured():
+            _supabase_client = SupabaseClient()
+            logger.info("Using Supabase for database")
+    except Exception as e:
+        logger.warning(f"Supabase init failed, falling back to SQLite: {e}")
+        USE_SUPABASE = False
+
+if not USE_SUPABASE:
+    logger.info("Using SQLite for database (local mode)")
+
+# SQLite configuration
 DB_PATH = Path(__file__).parent / "leads.db"
 
 
-def get_connection() -> sqlite3.Connection:
-    """Get a database connection with row factory."""
+# ========== SQLite Functions ==========
+
+def _get_sqlite_connection() -> sqlite3.Connection:
+    """Get a SQLite connection with row factory."""
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def init_database():
-    """Initialize the database schema."""
-    conn = get_connection()
+def _init_sqlite():
+    """Initialize SQLite database schema."""
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
 
-    # Create leads table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS leads (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,41 +67,27 @@ def init_database():
             annual_revenue REAL,
             num_locations INTEGER,
             subsidiary_of TEXT,
-
-            -- Status tracking
             status TEXT DEFAULT 'pending',
-
-            -- Personalization results
             personalization_line TEXT,
             artifact_type TEXT,
             confidence_tier TEXT,
             artifact_used TEXT,
             reasoning TEXT,
-
-            -- Campaign tracking
             campaign_id TEXT,
             campaign_name TEXT,
-
-            -- Timestamps
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             processed_at TIMESTAMP,
             pushed_at TIMESTAMP,
-
-            -- Error tracking
             error_message TEXT,
             retry_count INTEGER DEFAULT 0,
-
-            -- Unique constraint on email per campaign
             UNIQUE(email, campaign_id)
         )
     """)
 
-    # Create index for faster queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_campaign ON leads(campaign_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at)")
 
-    # Create campaigns table for organizing leads
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS campaigns (
             id TEXT PRIMARY KEY,
@@ -96,22 +102,35 @@ def init_database():
 
     conn.commit()
     conn.close()
-    logger.info("Database initialized successfully")
+
+
+# Initialize SQLite on import (only if not using Supabase)
+if not USE_SUPABASE:
+    _init_sqlite()
+
+
+# ========== Unified API Functions ==========
+
+def get_database_type() -> str:
+    """Return the current database type being used."""
+    return "supabase" if USE_SUPABASE else "sqlite"
 
 
 def create_campaign(name: str, description: str = "") -> str:
     """Create a new campaign and return its ID."""
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.create_campaign(name, description)
+
+    # SQLite implementation
     import uuid
     campaign_id = str(uuid.uuid4())[:8]
 
-    conn = get_connection()
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO campaigns (id, name, description)
-        VALUES (?, ?, ?)
-    """, (campaign_id, name, description))
-
+    cursor.execute(
+        "INSERT INTO campaigns (id, name, description) VALUES (?, ?, ?)",
+        (campaign_id, name, description)
+    )
     conn.commit()
     conn.close()
 
@@ -121,7 +140,11 @@ def create_campaign(name: str, description: str = "") -> str:
 
 def get_campaigns() -> List[Dict[str, Any]]:
     """Get all campaigns with their stats."""
-    conn = get_connection()
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.get_campaigns()
+
+    # SQLite implementation
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -140,27 +163,29 @@ def get_campaigns() -> List[Dict[str, Any]]:
 
     campaigns = [dict(row) for row in cursor.fetchall()]
     conn.close()
-
     return campaigns
 
 
 def get_campaign(campaign_id: str) -> Optional[Dict[str, Any]]:
     """Get a single campaign by ID."""
-    conn = get_connection()
-    cursor = conn.cursor()
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.get_campaign(campaign_id)
 
+    conn = _get_sqlite_connection()
+    cursor = conn.cursor()
     cursor.execute("SELECT * FROM campaigns WHERE id = ?", (campaign_id,))
     row = cursor.fetchone()
     conn.close()
-
     return dict(row) if row else None
 
 
 def delete_campaign(campaign_id: str) -> bool:
     """Delete a campaign and all its leads."""
-    conn = get_connection()
-    cursor = conn.cursor()
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.delete_campaign(campaign_id)
 
+    conn = _get_sqlite_connection()
+    cursor = conn.cursor()
     try:
         cursor.execute("DELETE FROM leads WHERE campaign_id = ?", (campaign_id,))
         cursor.execute("DELETE FROM campaigns WHERE id = ?", (campaign_id,))
@@ -178,24 +203,17 @@ def import_leads_from_csv(
     leads_data: List[Dict[str, Any]],
     campaign_id: str,
 ) -> Dict[str, int]:
-    """
-    Import leads from CSV data into the database.
+    """Import leads from CSV data into the database."""
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.import_leads_from_csv(leads_data, campaign_id)
 
-    Args:
-        leads_data: List of lead dictionaries
-        campaign_id: Campaign to associate leads with
-
-    Returns:
-        Dict with import stats: imported, skipped, errors
-    """
-    conn = get_connection()
+    # SQLite implementation
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
-
     stats = {"imported": 0, "skipped": 0, "errors": 0}
 
     for lead in leads_data:
         try:
-            # Normalize field names (handle various CSV formats)
             email = lead.get("email") or lead.get("Email") or lead.get("EMAIL", "")
             company = lead.get("company_name") or lead.get("Company") or lead.get("company", "")
 
@@ -231,7 +249,7 @@ def import_leads_from_csv(
             if cursor.rowcount > 0:
                 stats["imported"] += 1
             else:
-                stats["skipped"] += 1  # Duplicate
+                stats["skipped"] += 1
 
         except Exception as e:
             logger.error(f"Error importing lead {lead.get('email', 'unknown')}: {e}")
@@ -239,7 +257,6 @@ def import_leads_from_csv(
 
     conn.commit()
     conn.close()
-
     logger.info(f"Import complete: {stats}")
     return stats
 
@@ -251,7 +268,10 @@ def get_leads(
     offset: int = 0,
 ) -> List[Dict[str, Any]]:
     """Get leads with optional filtering."""
-    conn = get_connection()
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.get_leads(campaign_id, status, limit, offset)
+
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
 
     query = "SELECT * FROM leads WHERE 1=1"
@@ -271,7 +291,6 @@ def get_leads(
     cursor.execute(query, params)
     leads = [dict(row) for row in cursor.fetchall()]
     conn.close()
-
     return leads
 
 
@@ -280,7 +299,10 @@ def get_lead_count(
     status: Optional[str] = None,
 ) -> int:
     """Get count of leads matching criteria."""
-    conn = get_connection()
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.get_lead_count(campaign_id, status)
+
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
 
     query = "SELECT COUNT(*) FROM leads WHERE 1=1"
@@ -297,14 +319,10 @@ def get_lead_count(
     cursor.execute(query, params)
     count = cursor.fetchone()[0]
     conn.close()
-
     return count
 
 
-def get_pending_leads(
-    campaign_id: str,
-    limit: int = 50,
-) -> List[Dict[str, Any]]:
+def get_pending_leads(campaign_id: str, limit: int = 50) -> List[Dict[str, Any]]:
     """Get pending leads for processing."""
     return get_leads(campaign_id=campaign_id, status="pending", limit=limit)
 
@@ -319,8 +337,14 @@ def update_lead_status(
     reasoning: Optional[str] = None,
     error_message: Optional[str] = None,
 ):
-    """Update a lead's status and optionally its personalization data."""
-    conn = get_connection()
+    """Update a lead's status and personalization data."""
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.update_lead_status(
+            lead_id, status, personalization_line, artifact_type,
+            confidence_tier, artifact_used, reasoning, error_message
+        )
+
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
 
     updates = ["status = ?"]
@@ -336,23 +360,18 @@ def update_lead_status(
     if personalization_line is not None:
         updates.append("personalization_line = ?")
         params.append(personalization_line)
-
     if artifact_type is not None:
         updates.append("artifact_type = ?")
         params.append(artifact_type)
-
     if confidence_tier is not None:
         updates.append("confidence_tier = ?")
         params.append(confidence_tier)
-
     if artifact_used is not None:
         updates.append("artifact_used = ?")
         params.append(artifact_used)
-
     if reasoning is not None:
         updates.append("reasoning = ?")
         params.append(reasoning)
-
     if error_message is not None:
         updates.append("error_message = ?")
         params.append(error_message)
@@ -360,40 +379,36 @@ def update_lead_status(
 
     params.append(lead_id)
 
-    cursor.execute(f"""
-        UPDATE leads SET {', '.join(updates)} WHERE id = ?
-    """, params)
-
+    cursor.execute(f"UPDATE leads SET {', '.join(updates)} WHERE id = ?", params)
     conn.commit()
     conn.close()
 
 
 def bulk_update_status(lead_ids: List[int], status: str):
-    """Update status for multiple leads at once."""
+    """Update status for multiple leads."""
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.bulk_update_status(lead_ids, status)
+
     if not lead_ids:
         return
 
-    conn = get_connection()
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
-
     timestamp = datetime.now().isoformat()
 
     if status == "processed":
         cursor.execute(f"""
-            UPDATE leads
-            SET status = ?, processed_at = ?
+            UPDATE leads SET status = ?, processed_at = ?
             WHERE id IN ({','.join('?' * len(lead_ids))})
         """, [status, timestamp] + lead_ids)
     elif status == "pushed":
         cursor.execute(f"""
-            UPDATE leads
-            SET status = ?, pushed_at = ?
+            UPDATE leads SET status = ?, pushed_at = ?
             WHERE id IN ({','.join('?' * len(lead_ids))})
         """, [status, timestamp] + lead_ids)
     else:
         cursor.execute(f"""
-            UPDATE leads
-            SET status = ?
+            UPDATE leads SET status = ?
             WHERE id IN ({','.join('?' * len(lead_ids))})
         """, [status] + lead_ids)
 
@@ -403,7 +418,10 @@ def bulk_update_status(lead_ids: List[int], status: str):
 
 def get_lead_stats(campaign_id: Optional[str] = None) -> Dict[str, Any]:
     """Get statistics about leads."""
-    conn = get_connection()
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.get_lead_stats(campaign_id)
+
+    conn = _get_sqlite_connection()
     cursor = conn.cursor()
 
     base_query = "FROM leads"
@@ -413,18 +431,9 @@ def get_lead_stats(campaign_id: Optional[str] = None) -> Dict[str, Any]:
         base_query += " WHERE campaign_id = ?"
         params.append(campaign_id)
 
-    # Status counts
-    cursor.execute(f"""
-        SELECT
-            status,
-            COUNT(*) as count
-        {base_query}
-        GROUP BY status
-    """, params)
-
+    cursor.execute(f"SELECT status, COUNT(*) as count {base_query} GROUP BY status", params)
     status_counts = {row["status"]: row["count"] for row in cursor.fetchall()}
 
-    # Tier distribution (for processed leads)
     tier_query = base_query
     tier_params = params.copy()
     if campaign_id:
@@ -432,14 +441,7 @@ def get_lead_stats(campaign_id: Optional[str] = None) -> Dict[str, Any]:
     else:
         tier_query += " WHERE status IN ('processed', 'pushed')"
 
-    cursor.execute(f"""
-        SELECT
-            confidence_tier,
-            COUNT(*) as count
-        {tier_query}
-        GROUP BY confidence_tier
-    """, tier_params)
-
+    cursor.execute(f"SELECT confidence_tier, COUNT(*) as count {tier_query} GROUP BY confidence_tier", tier_params)
     tier_counts = {row["confidence_tier"]: row["count"] for row in cursor.fetchall()}
 
     conn.close()
@@ -458,11 +460,10 @@ def export_leads_to_csv(
     campaign_id: str,
     status: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    Export leads for CSV download.
+    """Export leads for CSV download."""
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.export_leads_to_csv(campaign_id, status)
 
-    Returns leads formatted for Instantly CSV format.
-    """
     leads = get_leads(campaign_id=campaign_id, status=status, limit=10000)
 
     export_data = []
@@ -484,22 +485,17 @@ def export_leads_to_csv(
 
 
 def reset_error_leads(campaign_id: str) -> int:
-    """Reset error leads back to pending status."""
-    conn = get_connection()
-    cursor = conn.cursor()
+    """Reset error leads back to pending."""
+    if USE_SUPABASE and _supabase_client:
+        return _supabase_client.reset_error_leads(campaign_id)
 
+    conn = _get_sqlite_connection()
+    cursor = conn.cursor()
     cursor.execute("""
-        UPDATE leads
-        SET status = 'pending', error_message = NULL
+        UPDATE leads SET status = 'pending', error_message = NULL
         WHERE campaign_id = ? AND status = 'error'
     """, (campaign_id,))
-
     count = cursor.rowcount
     conn.commit()
     conn.close()
-
     return count
-
-
-# Initialize database on module import
-init_database()
