@@ -456,22 +456,34 @@ SCAN THE DATA ABOVE. Find the BEST hook and write ONE killer opener.
 
 PRIORITY (use first match):
 1. VERDICTS/MONEY: "$2.3M", "million", "recovered", "settlement" → "{company_name} securing $2.3M for clients — results like that travel by word of mouth."
-2. REVIEWS: "4.8", "4.9", "stars", "reviews" → "4.8 stars across 200+ reviews — that reputation wasn't built overnight."
-3. AWARDS: "Super Lawyers", "Avvo", "Best Lawyers", "AV" → "Super Lawyers recognition while running a growing firm — that takes real work."
-4. YEARS: "since 19", "years", "founded", "established" → "28 years in Houston while others come and go — staying power like that is rare."
-5. TEAM: "attorneys", "lawyers", "team of" → "12 attorneys under one roof for PI cases — that's bench strength most can't match."
-6. SPECIALTY: practice area mentioned → "Pure focus on family law when others chase everything — clients notice that commitment."
+2. REVIEWS: "4.8", "4.9", "stars", "reviews", "BBB A+" → "4.8 stars across 200+ reviews — that reputation wasn't built overnight."
+3. AWARDS: "Super Lawyers", "Avvo", "Best Lawyers", "AV", "IICRC" → "Super Lawyers recognition while running a growing firm — that takes real work."
+4. CERTIFICATIONS: "IICRC", "WRT", "ASD", "certified" → "IICRC certified with WRT and ASD — your techs aren't just workers, they're specialists."
+5. INSURANCE: "State Farm", "Allstate", "preferred vendor" → "Preferred vendor for State Farm — that trust was earned through results."
+6. RESPONSE: "24/7", "60-minute", "response guarantee" → "24/7 response with a 45-minute guarantee — homeowners remember that speed."
+7. YEARS: "since 19", "years", "founded", "established" → "28 years in Houston while others come and go — staying power like that is rare."
+8. TEAM: "attorneys", "lawyers", "team of", "trucks" → "12 attorneys under one roof for PI cases — that's bench strength most can't match."
+9. SPECIALTY: practice area mentioned → "Pure focus on family law when others chase everything — clients notice that commitment."
 
 THE FORMULA:
 [Specific fact with number] — [ego-validating observation]
 
 GOOD OPENERS (copy this style):
+LEGAL:
 - "4.9 stars with 340 reviews — trust like that is earned over years, not months."
 - "$1.2M settlement against State Farm — insurance companies remember lawyers who win."
 - "Practicing in Phoenix since 1991 — 33 years of building something real."
 - "7 attorneys focused only on criminal defense — that's rare specialization."
 - "Super Lawyers 2024 while growing the team — you're clearly doing something right."
 - "AV Preeminent from Martindale — top 5% nationally doesn't happen by accident."
+
+RESTORATION:
+- "IICRC certified with WRT, ASD, and FSRT — your crew knows their craft."
+- "Preferred vendor for State Farm and Allstate — that trust was earned, not bought."
+- "24/7 response with a 45-minute guarantee — homeowners remember that speed when it counts."
+- "18 trucks covering 3 counties — you've scaled this operation the right way."
+- "2,500+ claims handled annually — that's real volume and real systems."
+- "BBB A+ rating for 15 years — you stand behind your work."
 
 BAD OPENERS (never write these):
 - "Your focus on X sets you apart" — generic garbage

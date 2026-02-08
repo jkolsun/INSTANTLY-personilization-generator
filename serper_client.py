@@ -442,31 +442,53 @@ class SerperClient:
                     info.clients.append(clean)
 
     def _extract_reviews_and_ratings(self, text: str, info: CompanyInfo):
-        """Extract Google reviews, ratings, and social proof."""
+        """Extract Google reviews, ratings, and social proof - CRITICAL S-TIER DATA."""
         text_lower = text.lower()
 
-        # Star ratings (4.8 stars, 4.9/5, etc.)
+        # Star ratings (4.8 stars, 4.9/5, etc.) - expanded patterns
         rating_patterns = [
             r'(\d\.\d)\s*(?:star|/5|out of 5)',
             r'(\d\.\d)-star',
             r'rating[:\s]+(\d\.\d)',
+            r'(\d\.\d)\s*google\s*rating',
+            r'rated\s*(\d\.\d)',
+            r'(\d\.\d)\s*average',
+            r'(\d\.\d)\s*overall',
         ]
         for pattern in rating_patterns:
             match = re.search(pattern, text_lower)
             if match and not info.google_rating:
-                info.google_rating = f"{match.group(1)} stars"
-                break
+                rating = match.group(1)
+                # Only capture good ratings (4.0+)
+                if float(rating) >= 4.0:
+                    info.google_rating = f"{rating} stars"
+                    break
 
-        # Review counts (150 reviews, 200+ reviews, etc.)
+        # Review counts - expanded patterns to catch more formats
         review_patterns = [
             r'(\d{2,})\+?\s*(?:reviews|google reviews|customer reviews)',
             r'(\d{2,})\+?\s*(?:5-star|five star)\s*reviews',
+            r'based on\s*(\d{2,})\s*reviews',
+            r'(\d{2,})\s*verified\s*reviews',
+            r'(\d{1,3}(?:,\d{3})*)\s*reviews',  # Catches "1,234 reviews"
+            r'over\s*(\d{2,})\s*reviews',
         ]
         for pattern in review_patterns:
             match = re.search(pattern, text_lower)
             if match and not info.review_count:
-                info.review_count = f"{match.group(1)}+ reviews"
-                break
+                count = match.group(1).replace(',', '')
+                if int(count) >= 10:  # At least 10 reviews to be meaningful
+                    info.review_count = f"{match.group(1)}+ reviews"
+                    break
+
+        # BBB Rating - A+ rating is a trust signal
+        if 'bbb' in text_lower or 'better business bureau' in text_lower:
+            bbb_patterns = [r'bbb\s*(a\+?|b)', r'(a\+?)\s*(?:rating)?\s*(?:with|from|on)?\s*bbb']
+            for pattern in bbb_patterns:
+                match = re.search(pattern, text_lower)
+                if match and not hasattr(info, 'bbb_rating'):
+                    info.bbb_rating = f"BBB {match.group(1).upper()} Rating"
+                    break
 
     def _extract_years_in_business(self, text: str, info: CompanyInfo):
         """Extract years in business, founding date."""
@@ -909,6 +931,46 @@ class SerperClient:
                     info.claims_handled = f"{match.group(1)}+ claims handled annually"
                 break
 
+        # 24/7 availability - major trust signal for restoration
+        availability_patterns = [
+            r'24/7',
+            r'24 hours',
+            r'24-hour',
+            r'round the clock',
+            r'available 24',
+            r'emergency\s+(?:service|response)\s+24',
+        ]
+        for pattern in availability_patterns:
+            if re.search(pattern, text_lower) and not info.response_guarantee:
+                info.response_guarantee = "24/7 emergency response"
+                break
+
+        # Fleet size - shows scale
+        fleet_patterns = [
+            r'(\d{1,2})\s*(?:trucks?|vehicles?|vans?)',
+            r'fleet of\s*(\d{1,2})',
+        ]
+        for pattern in fleet_patterns:
+            match = re.search(pattern, text_lower)
+            if match and not info.fleet_size:
+                count = match.group(1)
+                if int(count) >= 3:
+                    info.fleet_size = f"{count} trucks/vehicles"
+                break
+
+        # Service area / counties covered
+        area_patterns = [
+            r'serving\s*(\d{1,2})\s*(?:counties|cities|locations)',
+            r'(\d{1,2})\s*(?:locations?|offices?)',
+        ]
+        for pattern in area_patterns:
+            match = re.search(pattern, text_lower)
+            if match and not info.service_area_size:
+                count = match.group(1)
+                if int(count) >= 2:
+                    info.service_area_size = f"{count} locations/counties served"
+                break
+
     def _validate_domain_matches(
         self,
         results: Dict[str, Any],
@@ -1088,6 +1150,10 @@ def extract_artifacts_from_serper(company_info: CompanyInfo) -> str:
         parts.append(f'REVIEWS: {company_info.google_rating}')
     elif company_info.review_count:
         parts.append(f'REVIEWS: {company_info.review_count} on Google')
+
+    # BBB Rating - Trust signal
+    if company_info.bbb_rating:
+        parts.append(f'TRUST: {company_info.bbb_rating}')
 
     # ===== TIER A: STRONG HOOKS =====
 
