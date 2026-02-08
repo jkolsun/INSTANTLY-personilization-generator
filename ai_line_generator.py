@@ -205,9 +205,10 @@ TIER: [S/A/B based on the hook quality]
 TYPE: [VERDICT/AVVO/SUPERLAWYERS/REVIEWS/IICRC/INSURANCE/RESPONSE/YEARS/GROWTH/TEAM/SPECIALTY/OTHER]
 ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 reviews", "IICRC WRT certified"]"""
 
-    def __init__(self, api_key: str, model: str = "claude-3-5-haiku-20241022"):
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
         """Initialize the AI line generator."""
-        # Use Claude 3.5 Haiku - faster and more reliable than original Haiku
+        # Use Claude Sonnet 4 for QUALITY over speed
+        # Sonnet produces better, more thoughtful personalization than Haiku
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
         logger.info(f"AI Generator initialized with model: {self.model}")
