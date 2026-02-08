@@ -45,106 +45,514 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* Main branding colors */
+    /* Import Space Grotesk font */
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+    /* Main branding colors - Bright Automations Teal Theme */
     :root {
-        --primary: #6366f1;
-        --primary-dark: #4f46e5;
+        --primary: #2E7D8A;
+        --primary-dark: #1e5a63;
+        --primary-light: #3a9aa8;
         --secondary: #10b981;
         --accent: #f59e0b;
         --background: #0f172a;
         --surface: #1e293b;
+        --surface-light: #334155;
         --text: #f8fafc;
         --text-muted: #94a3b8;
+        --text-secondary: #64748b;
+        --glass-bg: rgba(30, 41, 59, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.1);
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --error: #ef4444;
+    }
+
+    /* Apply Space Grotesk font globally */
+    html, body, [class*="css"] {
+        font-family: 'Space Grotesk', sans-serif;
     }
 
     /* Hide default Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Main container padding adjustment */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
+    }
 
     /* Sidebar styling */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     [data-testid="stSidebar"] .stMarkdown h1,
     [data-testid="stSidebar"] .stMarkdown h2,
     [data-testid="stSidebar"] .stMarkdown h3 {
         color: #f8fafc;
+        font-family: 'Space Grotesk', sans-serif;
     }
 
-    /* Progress bar */
+    /* Progress bar - Teal gradient with animation */
     .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #6366f1 0%, #10b981 100%);
+        background: linear-gradient(90deg, #2E7D8A 0%, #10b981 100%);
+        transition: width 0.3s ease;
     }
 
-    /* Metric cards */
+    /* Metric cards - enhanced */
     [data-testid="stMetricValue"] {
         font-size: 2rem;
         font-weight: 700;
+        font-family: 'Space Grotesk', sans-serif;
+        color: #f8fafc;
+    }
+
+    [data-testid="stMetricLabel"] {
+        font-family: 'Space Grotesk', sans-serif;
+        color: #94a3b8;
+        font-weight: 500;
+    }
+
+    [data-testid="stMetricDelta"] {
+        font-family: 'Space Grotesk', sans-serif;
     }
 
     /* Tier colors */
     .tier-s { color: #10b981; font-weight: bold; }
-    .tier-a { color: #6366f1; font-weight: bold; }
+    .tier-a { color: #2E7D8A; font-weight: bold; }
     .tier-b { color: #94a3b8; font-weight: bold; }
 
-    /* Custom cards */
-    .feature-card {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-        border-radius: 12px;
+    /* Enhanced glassmorphism cards */
+    .glass-card {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 16px;
         padding: 24px;
-        border: 1px solid #334155;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        margin: 12px 0;
+        transition: all 0.3s ease;
+    }
+
+    .glass-card:hover {
+        border-color: rgba(46, 125, 138, 0.3);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .feature-card {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(51, 65, 85, 0.6) 100%);
+        backdrop-filter: blur(12px);
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         margin: 8px 0;
+        transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(46, 125, 138, 0.3);
     }
 
     .stat-card {
-        background: #1e293b;
-        border-radius: 8px;
-        padding: 16px;
+        background: rgba(30, 41, 59, 0.6);
+        backdrop-filter: blur(8px);
+        border-radius: 12px;
+        padding: 20px;
         text-align: center;
-        border: 1px solid #334155;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        transition: all 0.3s ease;
     }
 
-    /* Button styling */
+    .stat-card:hover {
+        background: rgba(30, 41, 59, 0.8);
+        border-color: rgba(46, 125, 138, 0.2);
+    }
+
+    /* Button styling - Teal theme enhanced */
     .stButton > button {
-        border-radius: 8px;
+        border-radius: 10px;
         font-weight: 600;
+        font-family: 'Space Grotesk', sans-serif;
+        transition: all 0.2s ease;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 0.5rem 1.25rem;
+    }
+
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(46, 125, 138, 0.3);
+    }
+
+    .stButton > button:active {
+        transform: translateY(0);
     }
 
     .stButton > button[kind="primary"] {
-        background: linear-gradient(90deg, #6366f1 0%, #4f46e5 100%);
+        background: linear-gradient(135deg, #2E7D8A 0%, #1e5a63 100%);
+        border: none;
+        color: white;
     }
 
-    /* Tab styling */
+    .stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #3a9aa8 0%, #2E7D8A 100%);
+    }
+
+    /* Tab styling - refined */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 4px;
+        background: rgba(30, 41, 59, 0.5);
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     .stTabs [data-baseweb="tab"] {
-        border-radius: 8px 8px 0 0;
+        border-radius: 8px;
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 500;
+        padding: 8px 16px;
+        transition: all 0.2s ease;
     }
 
-    /* Header styling */
+    .stTabs [data-baseweb="tab"]:hover {
+        background: rgba(46, 125, 138, 0.1);
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #2E7D8A 0%, #1e5a63 100%) !important;
+        color: white !important;
+    }
+
+    /* Header styling - Teal gradient */
     .main-header {
-        font-size: 2.5rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, #6366f1 0%, #10b981 100%);
+        font-size: 2.25rem;
+        font-weight: 700;
+        font-family: 'Space Grotesk', sans-serif;
+        background: linear-gradient(135deg, #2E7D8A 0%, #10b981 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        background-clip: text;
         margin-bottom: 0;
+        letter-spacing: -0.02em;
     }
 
     .sub-header {
         color: #94a3b8;
-        font-size: 1.1rem;
-        margin-top: 0;
+        font-size: 1rem;
+        font-family: 'Space Grotesk', sans-serif;
+        margin-top: 4px;
+        font-weight: 400;
     }
 
     /* Status indicators */
     .status-pending { color: #f59e0b; }
     .status-processed { color: #10b981; }
-    .status-pushed { color: #6366f1; }
+    .status-pushed { color: #2E7D8A; }
     .status-error { color: #ef4444; }
+
+    /* Getting Started Banner - Premium Design */
+    .getting-started-banner {
+        background: linear-gradient(135deg, rgba(46, 125, 138, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%);
+        backdrop-filter: blur(12px);
+        border-radius: 16px;
+        padding: 20px 24px;
+        border: 1px solid rgba(46, 125, 138, 0.2);
+        margin-bottom: 24px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    .getting-started-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+
+    .getting-started-title-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .getting-started-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #2E7D8A 0%, #10b981 100%);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .getting-started-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #f8fafc;
+        font-family: 'Space Grotesk', sans-serif;
+        margin: 0;
+    }
+
+    .getting-started-subtitle {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin: 2px 0 0 0;
+    }
+
+    .progress-badge {
+        background: rgba(46, 125, 138, 0.2);
+        color: #2E7D8A;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        font-family: 'Space Grotesk', sans-serif;
+    }
+
+    /* Checklist Steps */
+    .checklist-steps {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .checklist-step {
+        flex: 1;
+        min-width: 160px;
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: all 0.2s ease;
+        cursor: default;
+    }
+
+    .checklist-step:hover {
+        background: rgba(30, 41, 59, 0.7);
+        border-color: rgba(46, 125, 138, 0.2);
+    }
+
+    .checklist-step.completed {
+        background: rgba(16, 185, 129, 0.08);
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .step-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .step-number {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgba(148, 163, 184, 0.2);
+        border: 2px solid #64748b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #94a3b8;
+        transition: all 0.2s ease;
+    }
+
+    .step-number.completed {
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        border-color: #22c55e;
+        color: white;
+    }
+
+    .step-label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #f8fafc;
+        font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .step-label.completed {
+        color: #94a3b8;
+    }
+
+    .step-description {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-left: 34px;
+    }
+
+    /* Expander styling - refined */
+    .streamlit-expanderHeader {
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 600;
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 10px;
+    }
+
+    /* Input styling - enhanced */
+    .stTextInput > div > div > input {
+        border-radius: 10px;
+        font-family: 'Space Grotesk', sans-serif;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.2s ease;
+    }
+
+    .stTextInput > div > div > input:focus {
+        border-color: #2E7D8A;
+        box-shadow: 0 0 0 2px rgba(46, 125, 138, 0.2);
+    }
+
+    /* Select box styling */
+    .stSelectbox > div > div {
+        border-radius: 10px;
+    }
+
+    /* Success/Warning/Error/Info boxes - refined */
+    .stSuccess {
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        border-radius: 10px;
+    }
+
+    .stWarning {
+        background: rgba(245, 158, 11, 0.1);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        border-radius: 10px;
+    }
+
+    .stError {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 10px;
+    }
+
+    .stInfo {
+        background: rgba(46, 125, 138, 0.1);
+        border: 1px solid rgba(46, 125, 138, 0.3);
+        border-radius: 10px;
+    }
+
+    /* DataFrame styling */
+    .stDataFrame {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* Form styling */
+    [data-testid="stForm"] {
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* File uploader styling */
+    [data-testid="stFileUploader"] {
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        border: 2px dashed rgba(46, 125, 138, 0.3);
+    }
+
+    [data-testid="stFileUploader"]:hover {
+        border-color: rgba(46, 125, 138, 0.5);
+        background: rgba(30, 41, 59, 0.5);
+    }
+
+    /* Divider styling */
+    hr {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
+        margin: 24px 0;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: rgba(46, 125, 138, 0.5);
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(46, 125, 138, 0.7);
+    }
+
+    /* Quick action cards */
+    .quick-action-card {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .quick-action-card:hover {
+        background: rgba(46, 125, 138, 0.1);
+        border-color: rgba(46, 125, 138, 0.3);
+        transform: translateY(-2px);
+    }
+
+    /* Campaign card styling */
+    .campaign-card {
+        background: rgba(30, 41, 59, 0.4);
+        border-radius: 12px;
+        padding: 16px 20px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        margin: 8px 0;
+        transition: all 0.2s ease;
+    }
+
+    .campaign-card:hover {
+        background: rgba(30, 41, 59, 0.6);
+        border-color: rgba(46, 125, 138, 0.2);
+    }
+
+    /* Empty state styling */
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 16px;
+        border: 1px dashed rgba(255, 255, 255, 0.1);
+    }
+
+    .empty-state-icon {
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    .empty-state-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #f8fafc;
+        margin-bottom: 8px;
+    }
+
+    .empty-state-text {
+        color: #94a3b8;
+        font-size: 0.9rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -181,6 +589,10 @@ def init_session_state():
 
         # Selected campaign for database
         "selected_campaign_id": None,
+
+        # Getting Started checklist
+        "checklist_dismissed": False,
+        "first_leads_processed": False,
     }
 
     for key, value in defaults.items():
@@ -196,14 +608,207 @@ def init_session_state():
             pass
 
 
+def get_checklist_status() -> Dict[str, Any]:
+    """Get the current status of the getting started checklist."""
+    stats = db.get_lead_stats()
+    campaigns = db.get_campaigns()
+
+    checklist = {
+        "claude_connected": {
+            "label": "Connect Claude AI",
+            "description": "Required for AI-powered personalization",
+            "completed": st.session_state.anthropic_connected,
+            "action": "Settings",
+        },
+        "serper_connected": {
+            "label": "Connect Serper",
+            "description": "Required for company research",
+            "completed": bool(st.session_state.serper_api_key),
+            "action": "Settings",
+        },
+        "campaign_created": {
+            "label": "Create first campaign",
+            "description": "Organize your leads by campaign",
+            "completed": len(campaigns) > 0,
+            "action": "Lead Manager",
+        },
+        "leads_imported": {
+            "label": "Import leads",
+            "description": "Upload a CSV with your leads",
+            "completed": stats["total"] > 0,
+            "action": "Lead Manager",
+        },
+        "leads_processed": {
+            "label": "Process your first lead",
+            "description": "Generate personalized opening lines",
+            "completed": stats["processed"] > 0 or stats["pushed"] > 0 or st.session_state.first_leads_processed,
+            "action": "Lead Manager",
+        },
+    }
+
+    completed = sum(1 for item in checklist.values() if item["completed"])
+    total = len(checklist)
+
+    return {
+        "items": checklist,
+        "completed": completed,
+        "total": total,
+        "percentage": int((completed / total) * 100),
+        "all_done": completed == total,
+    }
+
+
+def render_getting_started_checklist():
+    """Render the premium Getting Started checklist banner at the top of all pages."""
+    if st.session_state.checklist_dismissed:
+        return
+
+    status = get_checklist_status()
+
+    # Don't show if all complete (show success message briefly then hide)
+    if status["all_done"]:
+        return
+
+    # Premium banner header
+    st.markdown(f"""
+    <div class="getting-started-banner">
+        <div class="getting-started-header">
+            <div class="getting-started-title-row">
+                <div class="getting-started-icon">🚀</div>
+                <div>
+                    <h3 class="getting-started-title">Getting Started</h3>
+                    <p class="getting-started-subtitle">Complete these steps to start personalizing leads</p>
+                </div>
+            </div>
+            <div class="progress-badge">{status['completed']}/{status['total']} Complete</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Animated progress bar
+    st.progress(status["percentage"] / 100)
+
+    # Step cards in a row
+    cols = st.columns(5)
+    items = list(status["items"].items())
+
+    for i, (key, item) in enumerate(items):
+        with cols[i]:
+            step_num = i + 1
+            is_complete = item["completed"]
+
+            # Determine if this is the current/next step
+            is_current = not is_complete and all(
+                status["items"][list(status["items"].keys())[j]]["completed"]
+                for j in range(i)
+            )
+
+            # Card styling based on state
+            if is_complete:
+                bg_color = "rgba(34, 197, 94, 0.1)"
+                border_color = "rgba(34, 197, 94, 0.3)"
+                icon_bg = "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
+                icon_content = "✓"
+                icon_color = "white"
+                label_color = "#94a3b8"
+                label_style = "text-decoration: line-through;"
+            elif is_current:
+                bg_color = "rgba(46, 125, 138, 0.15)"
+                border_color = "rgba(46, 125, 138, 0.4)"
+                icon_bg = "linear-gradient(135deg, #2E7D8A 0%, #10b981 100%)"
+                icon_content = str(step_num)
+                icon_color = "white"
+                label_color = "#f8fafc"
+                label_style = "font-weight: 600;"
+            else:
+                bg_color = "rgba(30, 41, 59, 0.5)"
+                border_color = "rgba(255, 255, 255, 0.08)"
+                icon_bg = "rgba(100, 116, 139, 0.3)"
+                icon_content = str(step_num)
+                icon_color = "#64748b"
+                label_color = "#94a3b8"
+                label_style = ""
+
+            st.markdown(f"""
+            <div style="
+                background: {bg_color};
+                border: 1px solid {border_color};
+                border-radius: 12px;
+                padding: 16px 12px;
+                text-align: center;
+                min-height: 120px;
+                transition: all 0.2s ease;
+            ">
+                <div style="
+                    width: 32px;
+                    height: 32px;
+                    background: {icon_bg};
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 10px;
+                    font-size: 0.85rem;
+                    font-weight: 600;
+                    color: {icon_color};
+                ">{icon_content}</div>
+                <div style="
+                    color: {label_color};
+                    font-size: 0.85rem;
+                    font-family: 'Space Grotesk', sans-serif;
+                    {label_style}
+                ">{item['label']}</div>
+                <div style="
+                    color: #64748b;
+                    font-size: 0.7rem;
+                    margin-top: 4px;
+                    line-height: 1.3;
+                ">{item['description']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Action button only for incomplete items
+            if not is_complete:
+                if st.button(
+                    f"Go to {item['action']}",
+                    key=f"checklist_{key}",
+                    use_container_width=True,
+                    type="primary" if is_current else "secondary"
+                ):
+                    st.session_state.current_page = item["action"]
+                    st.rerun()
+
+    # Dismiss link (subtle)
+    st.markdown("")  # Spacer
+    col1, col2, col3 = st.columns([2, 1, 2])
+    with col2:
+        if st.button("Hide for now", key="dismiss_checklist", use_container_width=True):
+            st.session_state.checklist_dismissed = True
+            st.rerun()
+
+    st.markdown("")  # Spacer after checklist
+
+
 # ========== Sidebar Navigation ==========
 
 def render_sidebar():
     """Render the sidebar with navigation and status."""
     with st.sidebar:
-        # Logo/Brand
-        st.markdown("## Bright Automations")
-        st.caption("Lead Personalization Platform")
+        # Logo/Brand with custom styling
+        st.markdown("""
+        <div style="text-align: center; padding: 16px 0;">
+            <div style="
+                font-size: 1.75rem;
+                font-weight: 700;
+                font-family: 'Space Grotesk', sans-serif;
+                background: linear-gradient(135deg, #2E7D8A 0%, #10b981 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            ">Bright Automations</div>
+            <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 4px;">Lead Personalization Platform</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         st.markdown("---")
 
@@ -211,60 +816,124 @@ def render_sidebar():
         st.markdown("### Navigation")
 
         pages = {
-            "Dashboard": "",
-            "Lead Manager": "",
-            "Quick Personalize": "",
-            "Instantly Sync": "",
-            "Settings": "",
+            "Dashboard": "📊",
+            "Lead Manager": "👥",
+            "Quick Personalize": "⚡",
+            "Instantly Sync": "🔄",
+            "Settings": "⚙️",
         }
 
         for page_name, icon in pages.items():
+            is_active = st.session_state.current_page == page_name
             if st.button(
                 f"{icon} {page_name}",
                 key=f"nav_{page_name}",
                 use_container_width=True,
-                type="primary" if st.session_state.current_page == page_name else "secondary"
+                type="primary" if is_active else "secondary"
             ):
                 st.session_state.current_page = page_name
                 st.rerun()
 
         st.markdown("---")
 
-        # Quick Stats
+        # Quick Stats with glass effect
         st.markdown("### Quick Stats")
         stats = db.get_lead_stats()
 
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Total Leads", stats["total"])
+            st.metric("Total", stats["total"])
         with col2:
-            st.metric("Processed", stats["processed"])
+            st.metric("Done", stats["processed"])
 
         # Database indicator
         db_type = db.get_database_type()
         if db_type == "supabase":
-            st.success(" Cloud Database")
+            st.markdown("""
+            <div style="
+                background: rgba(16, 185, 129, 0.1);
+                border: 1px solid rgba(16, 185, 129, 0.3);
+                border-radius: 8px;
+                padding: 8px 12px;
+                color: #10b981;
+                font-size: 0.85rem;
+                text-align: center;
+                margin: 8px 0;
+            ">☁️ Cloud Database</div>
+            """, unsafe_allow_html=True)
         else:
-            st.info(" Local Database")
+            st.markdown("""
+            <div style="
+                background: rgba(148, 163, 184, 0.1);
+                border: 1px solid rgba(148, 163, 184, 0.3);
+                border-radius: 8px;
+                padding: 8px 12px;
+                color: #94a3b8;
+                font-size: 0.85rem;
+                text-align: center;
+                margin: 8px 0;
+            ">💾 Local Database</div>
+            """, unsafe_allow_html=True)
 
         st.markdown("---")
 
-        # Connection Status
+        # Connection Status with custom badges
         st.markdown("### Connections")
 
-        if st.session_state.anthropic_connected:
-            st.success(" Claude AI")
-        else:
-            st.error(" Claude AI")
+        connections = [
+            ("Claude AI", st.session_state.anthropic_connected, True),
+            ("Serper", bool(st.session_state.serper_api_key), True),
+            ("Instantly", st.session_state.instantly_connected, False),
+        ]
 
-        if st.session_state.instantly_connected:
-            st.success(" Instantly")
-        else:
-            st.warning(" Instantly")
+        for name, connected, required in connections:
+            if connected:
+                st.markdown(f"""
+                <div style="
+                    background: rgba(16, 185, 129, 0.1);
+                    border: 1px solid rgba(16, 185, 129, 0.3);
+                    border-radius: 8px;
+                    padding: 8px 12px;
+                    color: #10b981;
+                    font-size: 0.85rem;
+                    margin: 4px 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                ">✓ {name}</div>
+                """, unsafe_allow_html=True)
+            elif required:
+                st.markdown(f"""
+                <div style="
+                    background: rgba(239, 68, 68, 0.1);
+                    border: 1px solid rgba(239, 68, 68, 0.3);
+                    border-radius: 8px;
+                    padding: 8px 12px;
+                    color: #ef4444;
+                    font-size: 0.85rem;
+                    margin: 4px 0;
+                ">✗ {name}</div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="
+                    background: rgba(148, 163, 184, 0.1);
+                    border: 1px solid rgba(148, 163, 184, 0.2);
+                    border-radius: 8px;
+                    padding: 8px 12px;
+                    color: #94a3b8;
+                    font-size: 0.85rem;
+                    margin: 4px 0;
+                ">○ {name}</div>
+                """, unsafe_allow_html=True)
 
         # Footer
         st.markdown("---")
-        st.caption("v2.0 | [brightautomations.org](https://brightautomations.org)")
+        st.markdown("""
+        <div style="text-align: center; color: #64748b; font-size: 0.75rem;">
+            v2.0 · <a href="https://brightautomations.org" style="color: #2E7D8A;">brightautomations.org</a>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # ========== Dashboard Page ==========
@@ -274,85 +943,231 @@ def render_dashboard():
     st.markdown('<h1 class="main-header">Dashboard</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Overview of your lead personalization pipeline</p>', unsafe_allow_html=True)
 
-    # Top metrics
+    # Top metrics with premium cards
     stats = db.get_lead_stats()
     campaigns = db.get_campaigns()
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # Premium metric cards
+    st.markdown("""
+    <div style="
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 16px;
+        margin: 24px 0;
+    ">
+    """ + f"""
+        <div style="
+            background: linear-gradient(135deg, rgba(46, 125, 138, 0.15) 0%, rgba(46, 125, 138, 0.05) 100%);
+            border: 1px solid rgba(46, 125, 138, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        ">
+            <div style="color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Total Leads</div>
+            <div style="color: #2E7D8A; font-size: 2.25rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif;">{stats["total"]}</div>
+        </div>
+        <div style="
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        ">
+            <div style="color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Pending</div>
+            <div style="color: #f59e0b; font-size: 2.25rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif;">{stats["pending"]}</div>
+        </div>
+        <div style="
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        ">
+            <div style="color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Processed</div>
+            <div style="color: #22c55e; font-size: 2.25rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif;">{stats["processed"]}</div>
+        </div>
+        <div style="
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.05) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        ">
+            <div style="color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Pushed</div>
+            <div style="color: #6366f1; font-size: 2.25rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif;">{stats["pushed"]}</div>
+        </div>
+        <div style="
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.15) 0%, rgba(236, 72, 153, 0.05) 100%);
+            border: 1px solid rgba(236, 72, 153, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        ">
+            <div style="color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Campaigns</div>
+            <div style="color: #ec4899; font-size: 2.25rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif;">{len(campaigns)}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    with col1:
-        st.metric("Total Leads", stats["total"], help="All leads across campaigns")
-    with col2:
-        st.metric("Pending", stats["pending"], help="Awaiting personalization")
-    with col3:
-        st.metric("Processed", stats["processed"], help="Personalized and ready")
-    with col4:
-        st.metric("Pushed", stats["pushed"], help="Sent to Instantly")
-    with col5:
-        st.metric("Campaigns", len(campaigns), help="Active campaigns")
-
-    st.markdown("---")
+    st.markdown("")  # Spacer
 
     # Two column layout
     col_left, col_right = st.columns([2, 1])
 
     with col_left:
-        st.markdown("### Recent Campaigns")
+        st.markdown("""
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+            <div style="
+                width: 8px;
+                height: 24px;
+                background: linear-gradient(180deg, #2E7D8A 0%, #10b981 100%);
+                border-radius: 4px;
+            "></div>
+            <h3 style="margin: 0; color: #f8fafc; font-family: 'Space Grotesk', sans-serif;">Recent Campaigns</h3>
+        </div>
+        """, unsafe_allow_html=True)
 
         if campaigns:
             for campaign in campaigns[:5]:
-                with st.container():
-                    c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
-                    with c1:
-                        st.markdown(f"**{campaign['name']}**")
-                        st.caption(f"ID: {campaign['id']}")
-                    with c2:
-                        st.metric("Pending", campaign.get('pending_count', 0), label_visibility="collapsed")
-                    with c3:
-                        st.metric("Done", campaign.get('actual_processed', 0), label_visibility="collapsed")
-                    with c4:
-                        if st.button("Open", key=f"open_{campaign['id']}"):
-                            st.session_state.selected_campaign_id = campaign['id']
-                            st.session_state.current_page = "Lead Manager"
-                            st.rerun()
-                    st.markdown("---")
+                pending = campaign.get('pending_count', 0)
+                processed = campaign.get('actual_processed', 0)
+                total = campaign.get('actual_total', 0)
+                progress = int((processed / total * 100)) if total > 0 else 0
+
+                st.markdown(f"""
+                <div class="campaign-card" style="
+                    background: rgba(30, 41, 59, 0.5);
+                    border-radius: 12px;
+                    padding: 16px 20px;
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    margin-bottom: 12px;
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div>
+                            <div style="color: #f8fafc; font-weight: 600; font-size: 1rem; font-family: 'Space Grotesk', sans-serif;">{campaign['name']}</div>
+                            <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">ID: {campaign['id'][:8]}...</div>
+                        </div>
+                        <div style="display: flex; gap: 16px; align-items: center;">
+                            <div style="text-align: center;">
+                                <div style="color: #f59e0b; font-size: 1.1rem; font-weight: 600;">{pending}</div>
+                                <div style="color: #64748b; font-size: 0.65rem; text-transform: uppercase;">Pending</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="color: #22c55e; font-size: 1.1rem; font-weight: 600;">{processed}</div>
+                                <div style="color: #64748b; font-size: 0.65rem; text-transform: uppercase;">Done</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); border-radius: 4px; height: 4px; overflow: hidden;">
+                        <div style="background: linear-gradient(90deg, #2E7D8A 0%, #10b981 100%); height: 100%; width: {progress}%; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if st.button(f"Open Campaign", key=f"open_{campaign['id']}", use_container_width=True):
+                    st.session_state.selected_campaign_id = campaign['id']
+                    st.session_state.current_page = "Lead Manager"
+                    st.rerun()
         else:
-            st.info("No campaigns yet. Create one in Lead Manager to get started.")
-            if st.button("Go to Lead Manager", type="primary"):
+            st.markdown("""
+            <div class="empty-state">
+                <div class="empty-state-icon">📁</div>
+                <div class="empty-state-title">No Campaigns Yet</div>
+                <div class="empty-state-text">Create your first campaign to start personalizing leads</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Create Campaign", type="primary", use_container_width=True):
                 st.session_state.current_page = "Lead Manager"
                 st.rerun()
 
     with col_right:
-        st.markdown("### Quality Distribution")
+        # Quality Distribution
+        st.markdown("""
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+            <div style="
+                width: 8px;
+                height: 24px;
+                background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+                border-radius: 4px;
+            "></div>
+            <h3 style="margin: 0; color: #f8fafc; font-family: 'Space Grotesk', sans-serif;">Quality Tiers</h3>
+        </div>
+        """, unsafe_allow_html=True)
 
         tiers = stats.get("tiers", {})
-        if tiers:
+        if tiers and sum(tiers.values()) > 0:
             fig = go.Figure(data=[go.Pie(
                 labels=list(tiers.keys()),
                 values=list(tiers.values()),
-                hole=0.6,
-                marker_colors=['#10b981', '#6366f1', '#94a3b8'],
+                hole=0.65,
+                marker_colors=['#22c55e', '#2E7D8A', '#64748b'],
+                textinfo='label+percent',
+                textfont=dict(size=12, family='Space Grotesk'),
             )])
             fig.update_layout(
-                showlegend=True,
-                height=250,
-                margin=dict(t=20, b=20, l=20, r=20),
+                showlegend=False,
+                height=200,
+                margin=dict(t=10, b=10, l=10, r=10),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
             )
             st.plotly_chart(fig, use_container_width=True)
+
+            # Tier legend
+            st.markdown(f"""
+            <div style="display: flex; justify-content: center; gap: 16px; margin-top: -10px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 10px; height: 10px; background: #22c55e; border-radius: 50%;"></div>
+                    <span style="color: #94a3b8; font-size: 0.75rem;">S-Tier</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 10px; height: 10px; background: #2E7D8A; border-radius: 50%;"></div>
+                    <span style="color: #94a3b8; font-size: 0.75rem;">A-Tier</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 10px; height: 10px; background: #64748b; border-radius: 50%;"></div>
+                    <span style="color: #94a3b8; font-size: 0.75rem;">B-Tier</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.info("Process leads to see quality distribution")
+            st.markdown("""
+            <div style="
+                background: rgba(30, 41, 59, 0.5);
+                border-radius: 12px;
+                padding: 32px;
+                text-align: center;
+                border: 1px dashed rgba(255, 255, 255, 0.1);
+            ">
+                <div style="color: #64748b; font-size: 2rem; margin-bottom: 8px;">📊</div>
+                <div style="color: #94a3b8; font-size: 0.85rem;">Process leads to see quality breakdown</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown("### Quick Actions")
+        st.markdown("")  # Spacer
 
-        if st.button(" Import Leads", use_container_width=True):
+        # Quick Actions
+        st.markdown("""
+        <div style="display: flex; align-items: center; gap: 12px; margin: 20px 0 16px 0;">
+            <div style="
+                width: 8px;
+                height: 24px;
+                background: linear-gradient(180deg, #6366f1 0%, #8b5cf6 100%);
+                border-radius: 4px;
+            "></div>
+            <h3 style="margin: 0; color: #f8fafc; font-family: 'Space Grotesk', sans-serif;">Quick Actions</h3>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("Import Leads", use_container_width=True, type="primary"):
             st.session_state.current_page = "Lead Manager"
             st.rerun()
 
-        if st.button(" Process Pending", use_container_width=True):
+        if st.button("Process Pending", use_container_width=True):
             st.session_state.current_page = "Lead Manager"
             st.rerun()
 
-        if st.button(" Sync to Instantly", use_container_width=True):
+        if st.button("Sync to Instantly", use_container_width=True):
             st.session_state.current_page = "Instantly Sync"
             st.rerun()
 
@@ -545,7 +1360,7 @@ def render_lead_manager():
 
 
 def run_lead_processing(campaign_id: str, batch_size: int):
-    """Process pending leads from database."""
+    """Process pending leads from database with deep research."""
     leads = db.get_pending_leads(campaign_id, limit=batch_size)
 
     if not leads:
@@ -556,13 +1371,22 @@ def run_lead_processing(campaign_id: str, batch_size: int):
     serper = SerperClient(st.session_state.serper_api_key)
     ai_gen = AILineGenerator(st.session_state.anthropic_api_key)
 
+    # Enhanced progress display
     progress = st.progress(0)
     status = st.empty()
+    research_preview = st.empty()
     stats = {"S": 0, "A": 0, "B": 0, "errors": 0}
 
     for i, lead in enumerate(leads):
         company = lead["company_name"]
-        status.text(f"Processing {i+1}/{len(leads)}: {company}")
+
+        # Enhanced status display
+        status.markdown(f"""
+        <div style="background: rgba(46, 125, 138, 0.1); padding: 12px 16px; border-radius: 10px; margin: 8px 0;">
+            <div style="color: #2E7D8A; font-weight: 600;">🔍 Deep Research {i+1}/{len(leads)}</div>
+            <div style="color: #f8fafc; font-size: 1.1rem; margin-top: 4px;">{company}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         try:
             # Build location
@@ -574,11 +1398,37 @@ def run_lead_processing(campaign_id: str, batch_size: int):
             elif lead.get("state"):
                 location = lead["state"]
 
-            # Serper research
+            # Deep Serper research
             serper_data = ""
             try:
                 info = serper.get_company_info(company, lead.get("site_url", ""), location)
                 serper_data = extract_artifacts_from_serper(info)
+
+                # Show research findings
+                highlights = []
+                if info.case_verdicts:
+                    highlights.append(f"💰 {info.case_verdicts[0]}")
+                if info.avvo_rating:
+                    highlights.append(f"⭐ {info.avvo_rating}")
+                if info.super_lawyers:
+                    highlights.append(f"🏆 {info.super_lawyers}")
+                if info.google_rating:
+                    highlights.append(f"⭐ {info.google_rating}")
+                if info.iicrc_certs:
+                    highlights.append(f"🏅 {info.iicrc_certs[0]}")
+                if info.insurance_partners:
+                    highlights.append(f"🤝 {info.insurance_partners[0]}")
+                if info.years_in_business:
+                    highlights.append(f"📅 {info.years_in_business}")
+
+                if highlights:
+                    research_preview.markdown(f"""
+                    <div style="background: rgba(34, 197, 94, 0.1); padding: 10px 14px; border-radius: 8px; margin: 4px 0; border-left: 3px solid #22c55e;">
+                        <div style="color: #94a3b8; font-size: 0.75rem;">FOUND:</div>
+                        <div style="color: #f8fafc; font-size: 0.85rem;">{" | ".join(highlights[:3])}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
             except Exception as e:
                 logger.warning(f"Serper failed for {company}: {e}")
 
@@ -615,17 +1465,50 @@ def run_lead_processing(campaign_id: str, batch_size: int):
 
     # Complete
     status.empty()
+    research_preview.empty()
     progress.progress(100)
 
     total = stats["S"] + stats["A"] + stats["B"]
-    st.success(f"""
-    **Processing Complete**
-    - Total: {total}
-    - S-Tier: {stats['S']}
-    - A-Tier: {stats['A']}
-    - B-Tier: {stats['B']}
-    - Errors: {stats['errors']}
-    """)
+    s_pct = int((stats["S"] / total * 100)) if total > 0 else 0
+
+    # Mark checklist as complete
+    if total > 0:
+        st.session_state.first_leads_processed = True
+
+    # Enhanced success display
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 16px; padding: 24px; margin: 16px 0;">
+        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+            <div style="font-size: 2.5rem;">✅</div>
+            <div>
+                <div style="color: #22c55e; font-size: 1.25rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif;">Processing Complete</div>
+                <div style="color: #94a3b8; font-size: 0.9rem;">{total} leads personalized with deep research</div>
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+            <div style="background: rgba(34, 197, 94, 0.2); border-radius: 8px; padding: 12px; text-align: center;">
+                <div style="color: #22c55e; font-size: 1.5rem; font-weight: 700;">{stats['S']}</div>
+                <div style="color: #94a3b8; font-size: 0.75rem;">S-Tier</div>
+            </div>
+            <div style="background: rgba(46, 125, 138, 0.2); border-radius: 8px; padding: 12px; text-align: center;">
+                <div style="color: #2E7D8A; font-size: 1.5rem; font-weight: 700;">{stats['A']}</div>
+                <div style="color: #94a3b8; font-size: 0.75rem;">A-Tier</div>
+            </div>
+            <div style="background: rgba(148, 163, 184, 0.2); border-radius: 8px; padding: 12px; text-align: center;">
+                <div style="color: #94a3b8; font-size: 1.5rem; font-weight: 700;">{stats['B']}</div>
+                <div style="color: #94a3b8; font-size: 0.75rem;">B-Tier</div>
+            </div>
+            <div style="background: rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 12px; text-align: center;">
+                <div style="color: #ef4444; font-size: 1.5rem; font-weight: 700;">{stats['errors']}</div>
+                <div style="color: #94a3b8; font-size: 0.75rem;">Errors</div>
+            </div>
+        </div>
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); text-align: center;">
+            <span style="color: #22c55e; font-weight: 600; font-size: 1.1rem;">{s_pct}% S-Tier Quality</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.rerun()
 
 
@@ -634,12 +1517,35 @@ def run_lead_processing(campaign_id: str, batch_size: int):
 def render_quick_personalize():
     """Render the quick CSV personalization page."""
     st.markdown('<h1 class="main-header">Quick Personalize</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Upload a CSV and get personalized lines instantly</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Deep research + AI personalization for legal firms and restoration companies</p>', unsafe_allow_html=True)
 
     # Check API connection
     if not st.session_state.anthropic_connected:
         st.error("Claude AI not connected. Add ANTHROPIC_API_KEY to settings.")
         return
+
+    # Industry selection banner
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, rgba(46, 125, 138, 0.15) 0%, rgba(16, 185, 129, 0.08) 100%);
+        border-radius: 16px;
+        padding: 20px 24px;
+        border: 1px solid rgba(46, 125, 138, 0.2);
+        margin-bottom: 24px;
+    ">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="font-size: 2rem;">🎯</div>
+            <div>
+                <div style="color: #f8fafc; font-weight: 600; font-size: 1.1rem; font-family: 'Space Grotesk', sans-serif;">
+                    Industry-Specific Deep Research
+                </div>
+                <div style="color: #94a3b8; font-size: 0.9rem; margin-top: 4px;">
+                    Our AI performs 6-8 targeted searches per company to find verdicts, ratings, certifications, and awards
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([2, 1])
 
@@ -655,48 +1561,158 @@ def render_quick_personalize():
             st.dataframe(df.head(10), use_container_width=True)
 
     with col2:
-        st.markdown("### Settings")
+        st.markdown("### Processing Settings")
+
+        # Industry selector
+        industry = st.selectbox(
+            "Industry Focus",
+            ["Auto-detect", "Legal Firms", "Restoration Companies"],
+            help="Choose industry for optimized research queries"
+        )
+
+        # Map selection to industry code
+        industry_map = {
+            "Auto-detect": None,
+            "Legal Firms": "legal",
+            "Restoration Companies": "restoration"
+        }
+        selected_industry = industry_map[industry]
+
+        # Store in session state
+        if "selected_industry" not in st.session_state:
+            st.session_state.selected_industry = None
+        st.session_state.selected_industry = selected_industry
+
+        # Industry-specific info
+        if industry == "Legal Firms":
+            st.markdown("""
+            <div style="background: rgba(34, 197, 94, 0.1); padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(34, 197, 94, 0.2); margin: 12px 0;">
+                <div style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">⚖️ Legal Firm Research</div>
+                <div style="color: #94a3b8; font-size: 0.75rem; margin-top: 4px;">
+                    Searches: Avvo ratings, Super Lawyers, Martindale, case verdicts, Google reviews
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        elif industry == "Restoration Companies":
+            st.markdown("""
+            <div style="background: rgba(46, 125, 138, 0.1); padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(46, 125, 138, 0.2); margin: 12px 0;">
+                <div style="color: #2E7D8A; font-weight: 600; font-size: 0.85rem;">🔧 Restoration Research</div>
+                <div style="color: #94a3b8; font-size: 0.75rem; margin-top: 4px;">
+                    Searches: IICRC certs, insurance partnerships, response guarantees, Google reviews
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
         if st.session_state.df_input is not None:
             total = len(st.session_state.df_input)
             limit = st.slider("Process limit", 1, total, min(50, total))
 
-            if st.button(" Process Leads", type="primary", use_container_width=True):
-                process_quick_leads(limit)
+            st.markdown("---")
+
+            if st.button("🚀 Start Deep Research", type="primary", use_container_width=True):
+                process_quick_leads(limit, selected_industry)
 
     # Results
     if st.session_state.df_processed is not None:
         st.markdown("---")
-        st.markdown("### Results")
 
         df = st.session_state.df_processed
         stats = st.session_state.processing_stats
+        total = stats.get("S", 0) + stats.get("A", 0) + stats.get("B", 0)
 
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("S-Tier", stats.get("S", 0))
-        with col2:
-            st.metric("A-Tier", stats.get("A", 0))
-        with col3:
-            st.metric("B-Tier", stats.get("B", 0))
-        with col4:
-            st.metric("Errors", stats.get("errors", 0))
+        # Results header with quality score
+        s_pct = int((stats.get("S", 0) / total * 100)) if total > 0 else 0
+        quality_color = "#22c55e" if s_pct >= 50 else "#f59e0b" if s_pct >= 25 else "#94a3b8"
 
-        st.dataframe(df, use_container_width=True)
+        st.markdown(f"""
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+            <div>
+                <h2 style="margin: 0; color: #f8fafc; font-family: 'Space Grotesk', sans-serif;">Results</h2>
+                <p style="color: #94a3b8; margin: 4px 0 0 0;">Deep research complete for {total} companies</p>
+            </div>
+            <div style="
+                background: linear-gradient(135deg, {quality_color}22 0%, {quality_color}11 100%);
+                border: 1px solid {quality_color}44;
+                border-radius: 12px;
+                padding: 12px 20px;
+                text-align: center;
+            ">
+                <div style="color: {quality_color}; font-size: 1.5rem; font-weight: 700;">{s_pct}%</div>
+                <div style="color: #94a3b8; font-size: 0.75rem;">S-Tier Quality</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Download
+        # Tier breakdown cards
+        st.markdown("""
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;">
+        """ + f"""
+            <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 16px; text-align: center;">
+                <div style="color: #22c55e; font-size: 1.75rem; font-weight: 700;">{stats.get("S", 0)}</div>
+                <div style="color: #94a3b8; font-size: 0.8rem;">S-Tier</div>
+                <div style="color: #64748b; font-size: 0.65rem; margin-top: 2px;">Verdicts • Ratings • Awards</div>
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(46, 125, 138, 0.15) 0%, rgba(46, 125, 138, 0.05) 100%); border: 1px solid rgba(46, 125, 138, 0.3); border-radius: 12px; padding: 16px; text-align: center;">
+                <div style="color: #2E7D8A; font-size: 1.75rem; font-weight: 700;">{stats.get("A", 0)}</div>
+                <div style="color: #94a3b8; font-size: 0.8rem;">A-Tier</div>
+                <div style="color: #64748b; font-size: 0.65rem; margin-top: 2px;">Years • Growth • Team</div>
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(148, 163, 184, 0.15) 0%, rgba(148, 163, 184, 0.05) 100%); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12px; padding: 16px; text-align: center;">
+                <div style="color: #94a3b8; font-size: 1.75rem; font-weight: 700;">{stats.get("B", 0)}</div>
+                <div style="color: #94a3b8; font-size: 0.8rem;">B-Tier</div>
+                <div style="color: #64748b; font-size: 0.65rem; margin-top: 2px;">Services • Location</div>
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; text-align: center;">
+                <div style="color: #ef4444; font-size: 1.75rem; font-weight: 700;">{stats.get("errors", 0)}</div>
+                <div style="color: #94a3b8; font-size: 0.8rem;">Errors</div>
+                <div style="color: #64748b; font-size: 0.65rem; margin-top: 2px;">Failed to process</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Sample results preview
+        st.markdown("#### Sample Personalization Lines")
+        sample_df = df[["company_name", "personalization_line", "confidence_tier", "artifact_type"]].head(5)
+        sample_df.columns = ["Company", "Personalization Line", "Tier", "Hook Type"]
+
+        for _, row in sample_df.iterrows():
+            tier = row["Tier"]
+            tier_color = "#22c55e" if tier == "S" else "#2E7D8A" if tier == "A" else "#94a3b8"
+            st.markdown(f"""
+            <div style="background: rgba(30, 41, 59, 0.5); border-radius: 10px; padding: 14px 18px; margin: 8px 0; border-left: 3px solid {tier_color};">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="color: #f8fafc; font-weight: 600; font-size: 0.9rem;">{row['Company']}</div>
+                    <div style="display: flex; gap: 8px;">
+                        <span style="background: {tier_color}22; color: {tier_color}; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">{tier}-Tier</span>
+                        <span style="background: rgba(148, 163, 184, 0.2); color: #94a3b8; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem;">{row['Hook Type']}</span>
+                    </div>
+                </div>
+                <div style="color: #e2e8f0; font-size: 0.95rem; font-style: italic;">"{row['Personalization Line']}"</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # Full data table
+        with st.expander("View All Data", expanded=False):
+            st.dataframe(df, use_container_width=True)
+
+        # Download button
         csv = df.to_csv(index=False)
-        st.download_button(
-            " Download Results",
-            csv,
-            f"personalized_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            "text/csv",
-            use_container_width=True
-        )
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.download_button(
+                "📥 Download Personalized CSV",
+                csv,
+                f"personalized_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                "text/csv",
+                use_container_width=True,
+                type="primary"
+            )
 
 
-def process_quick_leads(limit: int):
-    """Process leads from uploaded CSV."""
+def process_quick_leads(limit: int, industry: str = None):
+    """Process leads from uploaded CSV with deep research."""
     df = st.session_state.df_input.head(limit).copy()
 
     serper = SerperClient(st.session_state.serper_api_key)
@@ -704,28 +1720,80 @@ def process_quick_leads(limit: int):
 
     results = []
     stats = {"S": 0, "A": 0, "B": 0, "errors": 0}
+    research_insights = []  # Store research data for display
 
-    progress = st.progress(0)
-    status = st.empty()
+    # Enhanced progress display
+    progress_container = st.container()
+    with progress_container:
+        progress = st.progress(0)
+        status = st.empty()
+        research_preview = st.empty()
 
     for i, row in df.iterrows():
         company = row.get("company_name", "Unknown")
-        status.text(f"Processing {i+1}/{len(df)}: {company}")
+        status.markdown(f"""
+        <div style="background: rgba(46, 125, 138, 0.1); padding: 12px 16px; border-radius: 10px; margin: 8px 0;">
+            <div style="color: #2E7D8A; font-weight: 600;">🔍 Researching {i+1}/{len(df)}</div>
+            <div style="color: #f8fafc; font-size: 1.1rem; margin-top: 4px;">{company}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         try:
             location = row.get("location", "")
+            if not location:
+                city = row.get("city", "")
+                state = row.get("state", "")
+                if city and state:
+                    location = f"{city}, {state}"
+                elif city:
+                    location = city
+                elif state:
+                    location = state
+
             domain = row.get("site_url", "")
 
-            # Research
+            # Deep Research with industry hint
             serper_data = ""
+            research_summary = ""
             try:
-                info = serper.get_company_info(company, domain, location)
+                info = serper.get_company_info(company, domain, location, industry)
                 serper_data = extract_artifacts_from_serper(info)
-            except:
-                pass
 
-            # Generate
-            lead_data = {"location": location}
+                # Build research summary for display
+                highlights = []
+                if info.case_verdicts:
+                    highlights.append(f"💰 Verdicts: {', '.join(info.case_verdicts[:2])}")
+                if info.avvo_rating:
+                    highlights.append(f"⭐ {info.avvo_rating}")
+                if info.super_lawyers:
+                    highlights.append(f"🏆 {info.super_lawyers}")
+                if info.google_rating and info.review_count:
+                    highlights.append(f"⭐ {info.google_rating} ({info.review_count})")
+                if info.iicrc_certs:
+                    highlights.append(f"🏅 IICRC: {', '.join(info.iicrc_certs[:2])}")
+                if info.insurance_partners:
+                    highlights.append(f"🤝 {info.insurance_partners[0]}")
+                if info.years_in_business:
+                    highlights.append(f"📅 {info.years_in_business}")
+
+                if highlights:
+                    research_summary = " | ".join(highlights[:3])
+                    research_preview.markdown(f"""
+                    <div style="background: rgba(34, 197, 94, 0.1); padding: 10px 14px; border-radius: 8px; margin: 4px 0; border-left: 3px solid #22c55e;">
+                        <div style="color: #94a3b8; font-size: 0.75rem;">FOUND:</div>
+                        <div style="color: #f8fafc; font-size: 0.85rem;">{research_summary}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception as e:
+                logger.warning(f"Serper failed for {company}: {e}")
+
+            # Generate personalized line
+            lead_data = {
+                "location": location,
+                "technologies": row.get("technologies"),
+                "keywords": row.get("keywords"),
+                "person_title": row.get("job_title"),
+            }
             result = ai_gen.generate_line(company, serper_data, lead_data)
 
             results.append({
@@ -733,26 +1801,42 @@ def process_quick_leads(limit: int):
                 "personalization_line": result.line,
                 "confidence_tier": result.confidence_tier,
                 "artifact_type": result.artifact_type,
+                "artifact_used": result.artifact_used,
+            })
+
+            research_insights.append({
+                "company": company,
+                "research": research_summary,
+                "line": result.line,
+                "tier": result.confidence_tier,
             })
 
             if result.confidence_tier in stats:
                 stats[result.confidence_tier] += 1
 
         except Exception as e:
+            logger.error(f"Error processing {company}: {e}")
             results.append({
                 **row.to_dict(),
                 "personalization_line": "Came across your company online.",
                 "confidence_tier": "B",
                 "artifact_type": "ERROR",
+                "artifact_used": "",
             })
             stats["errors"] += 1
 
         progress.progress((i + 1) / len(df))
 
     status.empty()
+    research_preview.empty()
     st.session_state.df_processed = pd.DataFrame(results)
     st.session_state.processing_stats = stats
     st.session_state.processing_complete = True
+
+    # Mark checklist as complete
+    if len(results) > 0:
+        st.session_state.first_leads_processed = True
+
     st.rerun()
 
 
@@ -933,8 +2017,8 @@ def render_settings():
             # Claude AI (Required)
             st.markdown("#### Claude AI (Anthropic)")
             st.markdown("""
-            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                <span style="color: #10b981; font-weight: bold;">REQUIRED</span> - Powers AI personalization
+            <div style="background: rgba(16, 185, 129, 0.1); padding: 16px; border-radius: 12px; margin-bottom: 16px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                <span style="color: #10b981; font-weight: bold;">REQUIRED</span> — Powers AI personalization
             </div>
             """, unsafe_allow_html=True)
 
@@ -980,8 +2064,8 @@ def render_settings():
             # Serper (Required)
             st.markdown("#### Serper (Google Search)")
             st.markdown("""
-            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                <span style="color: #10b981; font-weight: bold;">REQUIRED</span> - Powers company research
+            <div style="background: rgba(16, 185, 129, 0.1); padding: 16px; border-radius: 12px; margin-bottom: 16px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                <span style="color: #10b981; font-weight: bold;">REQUIRED</span> — Powers company research
             </div>
             """, unsafe_allow_html=True)
 
@@ -1021,8 +2105,8 @@ def render_settings():
             # Instantly (Optional)
             st.markdown("#### Instantly")
             st.markdown("""
-            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                <span style="color: #6366f1; font-weight: bold;">OPTIONAL</span> - Push leads to campaigns
+            <div style="background: rgba(46, 125, 138, 0.1); padding: 16px; border-radius: 12px; margin-bottom: 16px; border: 1px solid rgba(46, 125, 138, 0.2);">
+                <span style="color: #2E7D8A; font-weight: bold;">OPTIONAL</span> — Push leads to campaigns
             </div>
             """, unsafe_allow_html=True)
 
@@ -1071,8 +2155,8 @@ def render_settings():
             # Environment Variables Info
             st.markdown("#### Environment Variables")
             st.markdown("""
-            <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                <span style="color: #94a3b8; font-weight: bold;">RECOMMENDED</span> - For production deployment
+            <div style="background: rgba(148, 163, 184, 0.1); padding: 16px; border-radius: 12px; margin-bottom: 16px; border: 1px solid rgba(148, 163, 184, 0.2);">
+                <span style="color: #94a3b8; font-weight: bold;">RECOMMENDED</span> — For production deployment
             </div>
             """, unsafe_allow_html=True)
 
@@ -1311,6 +2395,9 @@ def main():
     """Main application entry point."""
     init_session_state()
     render_sidebar()
+
+    # Getting Started checklist at the top of ALL pages
+    render_getting_started_checklist()
 
     # Route to current page
     page = st.session_state.current_page

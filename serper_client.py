@@ -45,21 +45,35 @@ class CompanyInfo:
     bbb_rating: Optional[str] = None     # "A+ BBB"
     is_hiring: bool = False              # Growth signal
     hiring_roles: List[str] = field(default_factory=list)
-    certifications: List[str] = field(default_factory=list)  # Rheem dealer, etc.
+    certifications: List[str] = field(default_factory=list)
     team_size: Optional[str] = None      # "15 employees"
-    # NEW: Even more high-impact data
     jobs_completed: Optional[str] = None  # "10,000+ jobs completed"
     customers_served: Optional[str] = None  # "5,000+ happy customers"
     service_area_size: Optional[str] = None  # "Serving 15 cities"
     response_time: Optional[str] = None  # "Same-day service"
     owner_name: Optional[str] = None  # Owner/founder name
     founding_story: Optional[str] = None  # "Family-owned since..."
-    community_involvement: List[str] = field(default_factory=list)  # Sponsors, charity
-    media_features: List[str] = field(default_factory=list)  # TV, radio, news
-    special_achievements: List[str] = field(default_factory=list)  # Milestones
-    niche_specialty: Optional[str] = None  # What they're KNOWN for
-    fleet_size: Optional[str] = None  # "30 service trucks"
-    warranty_guarantee: Optional[str] = None  # "Lifetime warranty"
+    community_involvement: List[str] = field(default_factory=list)
+    media_features: List[str] = field(default_factory=list)
+    special_achievements: List[str] = field(default_factory=list)
+    niche_specialty: Optional[str] = None
+    fleet_size: Optional[str] = None
+    warranty_guarantee: Optional[str] = None
+    # LEGAL FIRM specific fields
+    case_verdicts: List[str] = field(default_factory=list)  # "$2.3M verdict"
+    avvo_rating: Optional[str] = None  # "10.0 Superb"
+    super_lawyers: Optional[str] = None  # "Super Lawyers 2024"
+    best_lawyers: Optional[str] = None  # "Best Lawyers in America"
+    martindale_rating: Optional[str] = None  # "AV Preeminent"
+    practice_areas: List[str] = field(default_factory=list)
+    bar_memberships: List[str] = field(default_factory=list)
+    notable_cases: List[str] = field(default_factory=list)
+    attorney_count: Optional[str] = None  # "12 attorneys"
+    # RESTORATION specific fields
+    iicrc_certs: List[str] = field(default_factory=list)  # WRT, ASD, FSRT
+    insurance_partners: List[str] = field(default_factory=list)  # State Farm preferred
+    response_guarantee: Optional[str] = None  # "45-minute arrival"
+    claims_handled: Optional[str] = None  # "2,000+ claims annually"
     # SD-06: Confidence scoring fields
     domain_match_count: int = 0
     total_results: int = 0
@@ -71,40 +85,42 @@ class CompanyInfo:
 
 # Known tools/platforms to look for (Tier S artifacts)
 KNOWN_TOOLS = [
-    "ServiceTitan", "HubSpot", "Salesforce", "QuickBooks", "Jobber",
-    "Housecall Pro", "Zendesk", "Monday.com", "Asana", "Slack",
-    "Mailchimp", "ActiveCampaign", "Podium", "Birdeye", "Workiz",
-    "FieldEdge", "Simpro", "Zoho", "Freshworks", "Pipedrive",
-    "Shopify", "WooCommerce", "Squarespace", "WordPress", "Webflow",
-    "Stripe", "Square", "PayPal", "Calendly", "Acuity", "Intercom",
-    "Drift", "Klaviyo", "Marketo", "Pardot", "Outreach", "Gong",
-    "Chorus", "ZoomInfo", "Apollo", "Lusha", "Clearbit", "6sense",
+    # Legal-specific software
+    "Clio", "MyCase", "PracticePanther", "Smokeball", "Filevine",
+    "Lawmatics", "CASEpeer", "Litify", "Needles", "TrialWorks",
+    "AbacusLaw", "PCLaw", "CosmoLex", "Legal Files", "Rocket Matter",
+    # Restoration-specific software
+    "Xactimate", "DASH", "Next Gear", "CoreLogic", "Encircle",
+    "JobNimbus", "RestorationManager", "iRestore", "PSA",
+    # General business tools
+    "HubSpot", "Salesforce", "QuickBooks", "Zendesk", "Monday.com",
+    "Mailchimp", "ActiveCampaign", "Podium", "Birdeye",
+    "Calendly", "Acuity", "Intercom", "Drift",
 ]
 
-# SD-05: Keywords that indicate wrong industry (for HVAC leads)
-# If these appear but the lead is HVAC, it's likely wrong company data
+# SD-05: Keywords that indicate wrong industry (for legal/restoration leads)
 WRONG_INDUSTRY_KEYWORDS = [
     # Different industries that might share company names
     "lawn care", "lawn service", "landscaping", "mowing",
-    "solar panel", "solar installation", "solar energy", "photovoltaic",
-    "robotics", "automation systems", "industrial robot",
+    "solar panel", "solar installation", "solar energy",
     "dental", "dentist", "orthodontic",
     "veterinary", "vet clinic", "animal hospital",
-    "real estate agent", "realtor", "property management",
     "restaurant", "catering", "food service",
     "car dealership", "auto sales", "used cars",
     "hair salon", "beauty salon", "spa services",
-    "law firm", "attorney", "legal services",
-    "accounting firm", "cpa services", "tax preparation",
+    "hvac", "air conditioning", "heating and cooling",
+    "plumbing", "plumber", "drain cleaning",
+    "roofing", "roofer", "roof repair",
+    "pest control", "exterminator",
 ]
 
 
 class SerperClient:
     """
-    Efficient Serper.dev Google Search API client.
+    Deep research Serper.dev Google Search API client.
 
-    Makes only 1-2 API calls per company to minimize cost while
-    maximizing personalization hook quality.
+    Performs comprehensive research on LEGAL FIRMS and RESTORATION COMPANIES
+    with multiple targeted searches to find the best personalization hooks.
     """
 
     BASE_URL = "https://google.serper.dev/search"
@@ -182,15 +198,24 @@ class SerperClient:
         self,
         company_name: str,
         domain: Optional[str] = None,
-        location: Optional[str] = None
+        location: Optional[str] = None,
+        industry: Optional[str] = None
     ) -> CompanyInfo:
         """
-        Get company information with MULTIPLE search queries for richer data.
+        Get company information with DEEP RESEARCH for LEGAL and RESTORATION firms.
+
+        Performs 5-6 targeted searches to find the best personalization hooks:
+        - Main company search
+        - Google reviews/testimonials
+        - Awards and news
+        - Legal-specific: Avvo, Super Lawyers, case verdicts
+        - Restoration-specific: IICRC, insurance partnerships
 
         Args:
             company_name: Name of the company
             domain: Optional company domain for disambiguation (highly recommended)
             location: Optional company location for disambiguation
+            industry: Optional industry hint ("legal", "restoration", or auto-detect)
 
         Returns:
             CompanyInfo with aggregated data
@@ -203,33 +228,94 @@ class SerperClient:
         if domain:
             clean_domain = domain.replace("https://", "").replace("http://", "").replace("www.", "")
 
+        # Auto-detect industry from company name if not provided
+        detected_industry = industry
+        if not detected_industry:
+            name_lower = clean_name.lower()
+            if any(kw in name_lower for kw in ["law", "legal", "attorney", "lawyer", "esq", "llp", "pllc", "firm"]):
+                detected_industry = "legal"
+            elif any(kw in name_lower for kw in ["restoration", "restore", "water damage", "fire damage", "mold", "cleanup", "disaster", "emergency"]):
+                detected_industry = "restoration"
+
         try:
-            # SEARCH 1: Main company search
+            # SEARCH 1: Main company search with disambiguation
             query1 = self._build_disambiguated_query(clean_name, domain, location)
-            logger.info(f"Serper query 1 for {company_name}: {query1}")
+            logger.info(f"[DEEP RESEARCH] Query 1 - Main: {query1}")
             results1 = self.search(query1, num_results=10)
             self._process_search_results(results1, info)
 
-            # SEARCH 2: Reviews and testimonials (great for personalization)
-            if clean_domain:
-                query2 = f'"{clean_name}" reviews OR testimonials site:{clean_domain}'
-                logger.info(f"Serper query 2 for {company_name}: {query2}")
-                try:
-                    results2 = self.search(query2, num_results=5)
-                    self._process_search_results(results2, info)
-                except Exception:
-                    pass
+            # SEARCH 2: Google reviews (S-TIER data)
+            query2 = f'"{clean_name}" "google reviews" OR "reviews" OR "stars"'
+            if location:
+                query2 += f' {location.split(",")[0]}'
+            logger.info(f"[DEEP RESEARCH] Query 2 - Reviews: {query2}")
+            try:
+                results2 = self.search(query2, num_results=8)
+                self._process_search_results(results2, info)
+            except Exception:
+                pass
 
-            # SEARCH 3: News and press
-            query3 = f'"{clean_name}" news OR press OR award'
+            # SEARCH 3: Awards, recognition, news (S-TIER data)
+            query3 = f'"{clean_name}" "award" OR "best of" OR "top" OR "winner" OR "featured"'
             if location:
                 query3 += f' {location.split(",")[0]}'
-            logger.info(f"Serper query 3 for {company_name}: {query3}")
+            logger.info(f"[DEEP RESEARCH] Query 3 - Awards: {query3}")
             try:
                 results3 = self.search(query3, num_results=5)
                 self._process_search_results(results3, info)
             except Exception:
                 pass
+
+            # ===== LEGAL FIRM DEEP RESEARCH =====
+            if detected_industry == "legal" or not detected_industry:
+                # SEARCH 4: Avvo ratings (S-TIER for attorneys)
+                query4 = f'"{clean_name}" site:avvo.com OR "avvo" OR "avvo rating"'
+                logger.info(f"[DEEP RESEARCH] Query 4 - Avvo: {query4}")
+                try:
+                    results4 = self.search(query4, num_results=5)
+                    self._process_search_results(results4, info)
+                except Exception:
+                    pass
+
+                # SEARCH 5: Super Lawyers / Best Lawyers / Martindale (S-TIER)
+                query5 = f'"{clean_name}" "super lawyers" OR "best lawyers" OR "martindale" OR "AV preeminent"'
+                logger.info(f"[DEEP RESEARCH] Query 5 - Legal Awards: {query5}")
+                try:
+                    results5 = self.search(query5, num_results=5)
+                    self._process_search_results(results5, info)
+                except Exception:
+                    pass
+
+                # SEARCH 6: Case verdicts and settlements (MEGA S-TIER)
+                query6 = f'"{clean_name}" "verdict" OR "settlement" OR "recovered" OR "million" OR "jury"'
+                if location:
+                    query6 += f' {location.split(",")[0]}'
+                logger.info(f"[DEEP RESEARCH] Query 6 - Verdicts: {query6}")
+                try:
+                    results6 = self.search(query6, num_results=5)
+                    self._process_search_results(results6, info)
+                except Exception:
+                    pass
+
+            # ===== RESTORATION COMPANY DEEP RESEARCH =====
+            if detected_industry == "restoration" or not detected_industry:
+                # SEARCH 7: IICRC certifications (S-TIER for restoration)
+                query7 = f'"{clean_name}" "IICRC" OR "certified" OR "WRT" OR "ASD" OR "FSRT"'
+                logger.info(f"[DEEP RESEARCH] Query 7 - IICRC: {query7}")
+                try:
+                    results7 = self.search(query7, num_results=5)
+                    self._process_search_results(results7, info)
+                except Exception:
+                    pass
+
+                # SEARCH 8: Insurance partnerships (S-TIER - shows trust)
+                query8 = f'"{clean_name}" "preferred vendor" OR "insurance approved" OR "State Farm" OR "Allstate" OR "USAA"'
+                logger.info(f"[DEEP RESEARCH] Query 8 - Insurance: {query8}")
+                try:
+                    results8 = self.search(query8, num_results=5)
+                    self._process_search_results(results8, info)
+                except Exception:
+                    pass
 
             # Validate domain matches
             if domain:
@@ -298,12 +384,15 @@ class SerperClient:
             self._extract_certifications(snippet, info)
             self._extract_hiring_signals(snippet, info)
             self._extract_team_size(snippet, info)
-            # NEW: Additional high-impact extractions
+            # Additional high-impact extractions
             self._extract_volume_metrics(snippet, info)
             self._extract_awards_recognition(snippet, title, info)
             self._extract_community_media(snippet, title, info)
             self._extract_owner_info(snippet, info)
             self._extract_service_differentiators(snippet, info)
+            # Legal and Restoration specific extractions
+            self._extract_legal_data(snippet, title, info)
+            self._extract_restoration_data(snippet, info)
 
     def _extract_linkedin_details(self, text: str, info: CompanyInfo):
         """Extract useful details from LinkedIn snippets."""
@@ -650,6 +739,176 @@ class SerperClient:
                     info.niche_specialty = specialty
                 break
 
+    def _extract_legal_data(self, text: str, title: str, info: CompanyInfo):
+        """Extract legal firm specific data - verdicts, ratings, awards."""
+        combined = f"{title} {text}"
+        combined_lower = combined.lower()
+
+        # Case verdicts and settlements (S-TIER for legal)
+        verdict_patterns = [
+            r'\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(?:million|m)\s*(?:verdict|settlement|recovery|judgment)',
+            r'(?:verdict|settlement|recovery|judgment)\s*(?:of|for)?\s*\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(?:million|m)',
+            r'\$(\d{1,3}(?:,\d{3})*)\s*(?:verdict|settlement|recovery)',
+            r'(\d{1,3}(?:\.\d+)?)\s*million\s*(?:dollar)?\s*(?:verdict|settlement|recovery)',
+            r'recovered\s*\$(\d{1,3}(?:,\d{3})*(?:\.\d+)?(?:\s*(?:million|m))?)',
+        ]
+        for pattern in verdict_patterns:
+            matches = re.findall(pattern, combined_lower)
+            for match in matches:
+                # Format the verdict amount
+                if 'million' in combined_lower or 'm' in match.lower():
+                    verdict = f"${match}M verdict/settlement"
+                else:
+                    verdict = f"${match} verdict/settlement"
+                if verdict not in info.case_verdicts and len(info.case_verdicts) < 3:
+                    info.case_verdicts.append(verdict)
+
+        # Avvo rating (S-TIER)
+        avvo_patterns = [
+            r'avvo\s*(?:rating)?[:\s]*(\d{1,2}(?:\.\d)?)\s*(?:/10|superb|excellent)?',
+            r'(\d{1,2}(?:\.\d)?)\s*(?:/10)?\s*(?:on\s+)?avvo',
+            r'avvo\s*superb\s*(?:rating)?',
+            r'avvo\s*10\.0',
+        ]
+        for pattern in avvo_patterns:
+            match = re.search(pattern, combined_lower)
+            if match and not info.avvo_rating:
+                if 'superb' in combined_lower or '10' in match.group(0):
+                    info.avvo_rating = "10.0 Superb on Avvo"
+                else:
+                    rating = match.group(1) if match.lastindex else "10.0"
+                    info.avvo_rating = f"{rating} on Avvo"
+                break
+
+        # Super Lawyers (S-TIER)
+        if 'super lawyer' in combined_lower:
+            year_match = re.search(r'super lawyer[s]?\s*(\d{4})', combined_lower)
+            if year_match:
+                info.super_lawyers = f"Super Lawyers {year_match.group(1)}"
+            else:
+                info.super_lawyers = "Super Lawyers"
+
+        # Best Lawyers in America (S-TIER)
+        if 'best lawyer' in combined_lower:
+            year_match = re.search(r'best lawyer[s]?\s*(?:in america)?\s*(\d{4})', combined_lower)
+            if year_match:
+                info.best_lawyers = f"Best Lawyers {year_match.group(1)}"
+            else:
+                info.best_lawyers = "Best Lawyers in America"
+
+        # Martindale-Hubbell rating (S-TIER)
+        martindale_patterns = [
+            r'(av\s*preeminent)',
+            r'martindale[- ]hubbell\s*(av|bv)',
+            r'(preeminent)\s*rating',
+        ]
+        for pattern in martindale_patterns:
+            match = re.search(pattern, combined_lower)
+            if match and not info.martindale_rating:
+                info.martindale_rating = "AV Preeminent - Martindale-Hubbell"
+                break
+
+        # Attorney/lawyer count
+        attorney_patterns = [
+            r'(\d{1,3})\s*(?:attorneys?|lawyers?|partners?|associates?)',
+            r'team of\s*(\d{1,3})\s*(?:attorneys?|lawyers?)',
+            r'firm of\s*(\d{1,3})',
+        ]
+        for pattern in attorney_patterns:
+            match = re.search(pattern, combined_lower)
+            if match and not info.attorney_count:
+                count = match.group(1)
+                if int(count) > 1:
+                    info.attorney_count = f"{count} attorneys"
+                break
+
+        # Practice areas (for specialization hooks)
+        practice_patterns = [
+            r'(?:practice areas?|specializ\w+\s+in|focus\w*\s+on)[:\s]+([^.]{10,60})',
+            r'(personal injury|family law|criminal defense|estate planning|bankruptcy|immigration|employment law|medical malpractice|workers.?\s*comp)',
+        ]
+        for pattern in practice_patterns:
+            matches = re.findall(pattern, combined_lower)
+            for match in matches:
+                clean = match.strip().title()[:40]
+                if clean and clean not in info.practice_areas and len(info.practice_areas) < 3:
+                    info.practice_areas.append(clean)
+
+    def _extract_restoration_data(self, text: str, info: CompanyInfo):
+        """Extract restoration company specific data - certs, insurance, response."""
+        text_lower = text.lower()
+
+        # IICRC Certifications (S-TIER for restoration)
+        iicrc_certs = {
+            'wrt': 'WRT (Water Restoration)',
+            'asd': 'ASD (Applied Structural Drying)',
+            'fsrt': 'FSRT (Fire & Smoke Restoration)',
+            'amrt': 'AMRT (Applied Microbial Remediation)',
+            'cct': 'CCT (Carpet Cleaning)',
+            'ocr': 'OCR (Odor Control Restoration)',
+            'rrt': 'RRT (Rug Restoration)',
+        }
+        for cert_code, cert_name in iicrc_certs.items():
+            if cert_code in text_lower or cert_name.lower() in text_lower:
+                if cert_name not in info.iicrc_certs:
+                    info.iicrc_certs.append(cert_name)
+
+        if 'iicrc certified' in text_lower or 'iicrc' in text_lower:
+            if 'IICRC Certified' not in info.iicrc_certs and not info.iicrc_certs:
+                info.iicrc_certs.append('IICRC Certified')
+
+        # Insurance company partnerships (S-TIER)
+        insurance_companies = [
+            'State Farm', 'Allstate', 'USAA', 'Liberty Mutual', 'Farmers',
+            'Nationwide', 'Progressive', 'Geico', 'Travelers', 'American Family',
+            'Erie Insurance', 'Auto-Owners', 'Chubb', 'Hartford', 'Amica',
+        ]
+        for company in insurance_companies:
+            if company.lower() in text_lower:
+                partner = f"{company} preferred vendor"
+                if partner not in info.insurance_partners:
+                    info.insurance_partners.append(partner)
+
+        # Preferred vendor / approved contractor status
+        preferred_patterns = [
+            r'(preferred\s+(?:vendor|contractor|provider))',
+            r'(approved\s+(?:vendor|contractor))',
+            r'(insurance\s+(?:approved|preferred))',
+        ]
+        for pattern in preferred_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                status = match.group(1).title()
+                if status not in info.insurance_partners:
+                    info.insurance_partners.append(status)
+
+        # Response time guarantee (S-TIER)
+        response_patterns = [
+            r'(\d{1,2})[- ]?(?:minute|min)\s*(?:response|arrival|guarantee)',
+            r'respond\s*(?:within)?\s*(\d{1,2})\s*(?:minutes?|mins?)',
+            r'on[- ]?site\s*(?:within)?\s*(\d{1,2})\s*(?:minutes?|hours?)',
+            r'(60|45|30)\s*(?:minute|min)\s*(?:response|arrival)',
+        ]
+        for pattern in response_patterns:
+            match = re.search(pattern, text_lower)
+            if match and not info.response_guarantee:
+                mins = match.group(1)
+                info.response_guarantee = f"{mins}-minute response guarantee"
+                break
+
+        # Claims/jobs handled annually
+        claims_patterns = [
+            r'(\d{1,3}[,\d]*)\+?\s*(?:claims?|jobs?|projects?)\s*(?:per year|annually|each year)',
+            r'handle[sd]?\s*(?:over\s+)?(\d{1,3}[,\d]*)\+?\s*(?:claims?|projects?)',
+        ]
+        for pattern in claims_patterns:
+            match = re.search(pattern, text_lower)
+            if match and not info.claims_handled:
+                count = match.group(1).replace(',', '')
+                if int(count) >= 100:
+                    info.claims_handled = f"{match.group(1)}+ claims handled annually"
+                break
+
     def _validate_domain_matches(
         self,
         results: Dict[str, Any],
@@ -755,6 +1014,7 @@ def extract_artifacts_from_serper(company_info: CompanyInfo) -> str:
     """
     Convert Serper results into a rich description for AI line generation.
     Prioritizes the most EGO-STROKING, CURIOSITY-INDUCING content.
+    Optimized for LEGAL FIRMS and RESTORATION COMPANIES.
 
     Args:
         company_info: CompanyInfo from Serper lookup
@@ -764,19 +1024,60 @@ def extract_artifacts_from_serper(company_info: CompanyInfo) -> str:
     """
     parts = []
 
-    # ===== TIER S: MEGA EGO STROKES (Use these first!) =====
+    # ===== TIER S: LEGAL FIRM MEGA HOOKS =====
 
-    # Awards and recognition - HUGE ego stroke
+    # Case verdicts/settlements - THE BEST hook for attorneys
+    for verdict in company_info.case_verdicts[:2]:
+        parts.append(f'VERDICT: {verdict}')
+
+    # Avvo rating - Attorneys LOVE this
+    if company_info.avvo_rating:
+        parts.append(f'RATING: {company_info.avvo_rating}')
+
+    # Super Lawyers - Major ego stroke
+    if company_info.super_lawyers:
+        parts.append(f'AWARD: {company_info.super_lawyers}')
+
+    # Best Lawyers in America
+    if company_info.best_lawyers:
+        parts.append(f'AWARD: {company_info.best_lawyers}')
+
+    # Martindale-Hubbell
+    if company_info.martindale_rating:
+        parts.append(f'RATING: {company_info.martindale_rating}')
+
+    # ===== TIER S: RESTORATION MEGA HOOKS =====
+
+    # IICRC Certifications - Shows expertise
+    if company_info.iicrc_certs:
+        certs = ", ".join(company_info.iicrc_certs[:3])
+        parts.append(f'CERTIFIED: {certs}')
+
+    # Insurance partnerships - Trust signal
+    for partner in company_info.insurance_partners[:2]:
+        parts.append(f'INSURANCE: {partner}')
+
+    # Response guarantee - Operational excellence
+    if company_info.response_guarantee:
+        parts.append(f'RESPONSE: {company_info.response_guarantee}')
+
+    # Claims handled - Scale
+    if company_info.claims_handled:
+        parts.append(f'SCALE: {company_info.claims_handled}')
+
+    # ===== TIER S: UNIVERSAL MEGA HOOKS =====
+
+    # Awards and recognition
     for award in company_info.awards[:3]:
         parts.append(f'AWARD: {award}')
 
-    # Jobs/customers served - Shows scale and success
+    # Jobs/customers served
     if company_info.jobs_completed:
         parts.append(f'SCALE: {company_info.jobs_completed}')
     if company_info.customers_served:
         parts.append(f'SCALE: {company_info.customers_served}')
 
-    # Media features - They're famous!
+    # Media features
     for media in company_info.media_features[:2]:
         parts.append(f'MEDIA: {media}')
 
@@ -789,6 +1090,10 @@ def extract_artifacts_from_serper(company_info: CompanyInfo) -> str:
         parts.append(f'REVIEWS: {company_info.review_count} on Google')
 
     # ===== TIER A: STRONG HOOKS =====
+
+    # Attorney/team count - Shows firm size
+    if company_info.attorney_count:
+        parts.append(f'TEAM: {company_info.attorney_count}')
 
     # Years in business - Longevity = trust
     if company_info.years_in_business:
@@ -815,9 +1120,11 @@ def extract_artifacts_from_serper(company_info: CompanyInfo) -> str:
         else:
             parts.append('GROWTH: Currently hiring/expanding')
 
-    # Niche specialty - What they're known for
+    # Niche specialty / Practice areas - What they're known for
     if company_info.niche_specialty:
         parts.append(f'SPECIALTY: Known for {company_info.niche_specialty}')
+    for area in company_info.practice_areas[:2]:
+        parts.append(f'SPECIALTY: {area}')
 
     # Tools/platforms - Shows sophistication
     for tool in company_info.tools[:3]:
