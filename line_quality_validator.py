@@ -64,13 +64,27 @@ class LineQualityValidator:
     # Minimum quality indicators - lines MUST have at least one
     QUALITY_INDICATORS = [
         r'\$[\d,]+[MKB]?\+?',  # Revenue figures ($2M+, $500K)
-        r'\d+[\+]?\s*(?:star|review|rating)',  # Reviews/ratings
+        r'\d+[\.\d]*\s*(?:star|review|rating)',  # Reviews/ratings (4.9 stars, 287 reviews)
         r'\d+[\+]?\s*(?:year|decade)',  # Years in business
         r'\d+[\+]?\s*(?:location|office|branch)',  # Multiple locations
-        r'\d+[\+]?\s*(?:employee|team|staff)',  # Team size
+        r'\d+[\+]?\s*(?:employee|team|staff|attorney|lawyer|technician|truck)',  # Team/fleet size
         r'(?:ServiceTitan|Freshdesk|HubSpot|Salesforce|Zendesk)',  # Tech stack
         r'(?:BBB|A\+|certified|accredited|licensed)',  # Certifications
         r'(?:franchise|subsidiary|part of)',  # Corporate structure
+        # LEGAL FIRM S-TIER patterns
+        r'(?:verdict|settlement|recovered|million|jury)',  # Case outcomes
+        r'(?:avvo|super lawyer|best lawyer|martindale|preeminent)',  # Legal awards
+        r'(?:attorney|lawyer|esquire|litigation)',  # Legal terms
+        # RESTORATION S-TIER patterns
+        r'(?:IICRC|WRT|ASD|FSRT|AMRT)',  # IICRC certifications
+        r'(?:State Farm|Allstate|USAA|preferred vendor|insurance)',  # Insurance
+        r'(?:24/7|24-hour|emergency response)',  # Response time
+        r'(?:claim|restoration|water damage|fire damage)',  # Restoration terms
+        # Em-dash pattern (our formula)
+        r'—',  # Em dash indicates formula was used
+        # General quality signals
+        r'since\s+\d{4}',  # "since 1987"
+        r'\d+\s*(?:county|counties|cities)',  # Service area
     ]
 
     def __init__(self):
@@ -208,22 +222,26 @@ class LineQualityValidator:
 
         # Check for quality indicators (specific data points)
         has_quality_indicator = False
+        quality_indicator_count = 0
         for pattern in self.QUALITY_INDICATORS:
             if re.search(pattern, line, re.IGNORECASE):
                 has_quality_indicator = True
-                quality_score += 10
-                break
+                quality_indicator_count += 1
 
-        if not has_quality_indicator:
-            # No specific data point found - still might be okay
-            quality_score -= 20
+        # Reward lines with quality indicators
+        if has_quality_indicator:
+            quality_score += min(15, quality_indicator_count * 5)  # Up to +15 for multiple indicators
+        else:
+            # Only slightly penalize - the line might still be good
+            quality_score -= 10
             issues.append("No specific data point detected in line")
 
-        # Check for numbers (specificity indicator)
+        # Check for numbers (specificity indicator) - but don't penalize heavily
         if re.search(r'\d+', line):
             quality_score += 5
-        else:
-            quality_score -= 10
+        # Don't penalize lines without numbers if they have other quality indicators
+        elif not has_quality_indicator:
+            quality_score -= 5
             issues.append("Line lacks specific numbers")
 
         # Check for company name if provided
@@ -255,15 +273,16 @@ class LineQualityValidator:
         quality_score = max(0, min(100, quality_score))
 
         # Determine suggested action based on quality score
-        if quality_score >= 70:
+        if quality_score >= 60:
             suggested_action = "accept"
-        elif quality_score >= 40:
+        elif quality_score >= 35:
             suggested_action = "retry"
         else:
             suggested_action = "fallback"
 
-        # Final validation
-        is_valid = quality_score >= 50 and len(issues) < 3
+        # Final validation - be more lenient to avoid too many fallbacks
+        # A line is valid if it has a reasonable score and not too many critical issues
+        is_valid = quality_score >= 45 and len(issues) < 4
 
         return ValidationResult(
             is_valid=is_valid,
