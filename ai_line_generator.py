@@ -209,9 +209,17 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
         """Initialize the AI line generator."""
         # Use Claude Sonnet 4 for QUALITY over speed
         # Sonnet produces better, more thoughtful personalization than Haiku
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.api_key = api_key
         self.model = model
-        logger.info(f"AI Generator initialized with model: {self.model}")
+
+        # Log API key status (masked for security)
+        if not api_key:
+            logger.error("ANTHROPIC API KEY IS EMPTY - Claude calls will fail!")
+        else:
+            masked = f"{api_key[:10]}...{api_key[-4:]}" if len(api_key) > 14 else "***"
+            logger.info(f"AI Generator initialized with key: {masked}, model: {self.model}")
+
+        self.client = anthropic.Anthropic(api_key=api_key)
 
     def generate_line(
         self,
@@ -230,6 +238,17 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
         Returns:
             AIGeneratedLine with the generated line and metadata
         """
+        # FAIL FAST if API key is missing
+        if not self.api_key:
+            logger.error(f"Cannot generate line for {company_name} - ANTHROPIC_API_KEY is not set!")
+            return AIGeneratedLine(
+                line=f"Firms like {company_name} don't survive by accident — you've earned your spot.",
+                confidence_tier="B",
+                artifact_type="NO_API_KEY",
+                artifact_used="",
+                reasoning="ANTHROPIC_API_KEY not configured - using fallback",
+            )
+
         # Build context from all available data
         context_parts = []
 
@@ -356,6 +375,10 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
                         # Don't retry, go straight to fallback
                         break
 
+            except anthropic.AuthenticationError as e:
+                logger.error(f"AUTHENTICATION FAILED - Invalid API key! {e}")
+                last_issues = ["Invalid API key - check ANTHROPIC_API_KEY"]
+                break  # Don't retry auth errors
             except anthropic.APIStatusError as e:
                 logger.error(f"Claude API Status Error: status={e.status_code}, message={e.message}")
                 last_issues = [f"API error: {e.status_code}"]
@@ -367,6 +390,8 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
                 last_issues = [f"API error: {str(e)[:50]}"]
             except Exception as e:
                 logger.error(f"Unexpected error: {type(e).__name__}: {e}")
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
                 last_issues = [f"{type(e).__name__}"]
 
         # All attempts failed - use PUNCHY fallbacks based on available data
