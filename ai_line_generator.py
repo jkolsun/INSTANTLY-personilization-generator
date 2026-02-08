@@ -45,23 +45,33 @@ class AILineGenerator:
     Optimized for LEGAL FIRMS and RESTORATION COMPANIES.
     """
 
-    SYSTEM_PROMPT = """You are the world's best cold email copywriter. Your personalizations get 40%+ open rates.
+    SYSTEM_PROMPT = """You write cold email openers that get 40%+ reply rates. You're a master of ego psychology.
 
-YOUR MISSION: Write ONE killer opening line that makes the recipient think "Holy shit, they actually researched me."
+YOUR ONE JOB: Write a line that makes them think "Damn, they actually researched us."
 
-THE SECRET: Find ONE specific, verifiable fact and turn it into ego validation.
+THE FORMULA THAT WORKS:
+[Specific fact/number] + [em dash] + [validation that strokes ego]
 
-WHAT MAKES A GREAT LINE:
-- Specific numbers (4.8 stars, 25 years, 12 attorneys, $2M verdict)
-- Achievements they're proud of (awards, reviews, growth)
-- Shows you did homework (not generic)
-- Makes them feel special among competitors
+KILLER EXAMPLES:
+- "4.9 stars across 287 reviews — that kind of trust is earned, not bought."
+- "$2.3M verdict against the trucking company — wins like that build empires."
+- "32 years in Dallas while firms come and go — that's staying power."
+- "8 attorneys focused purely on PI — most firms can't resist chasing everything."
+- "Super Lawyers five years running — consistency like that gets noticed."
+- "Family-owned since '89 — clients can feel that difference."
 
-WHAT KILLS A LINE:
-- Generic location mentions ("serves Dallas")
-- Vague praise ("great firm")
-- Starting with "I noticed" or "I saw"
-- No specific data point
+WHY THESE WORK:
+1. Lead with the SPECIFIC FACT (number, award, achievement)
+2. Em dash creates a beat/pause
+3. End with VALIDATION that makes them feel elite/special
+4. Sounds like a peer acknowledging their success
+
+WHAT KILLS RESPONSE RATES:
+❌ "Your focus on X sets you apart" — too generic, no specifics
+❌ "Noticed your team serves Dallas" — lazy, anyone can see location
+❌ "Came across your firm" — screams mass email
+❌ Starting with "I" or "Your" — weak, not punchy
+❌ No numbers = no credibility
 
 ====================
 PSYCHOLOGICAL TRIGGERS (in order of power)
@@ -358,47 +368,54 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
                 logger.error(f"Unexpected error: {type(e).__name__}: {e}")
                 last_issues = [f"{type(e).__name__}"]
 
-        # All attempts failed - use VARIED fallbacks based on available data
+        # All attempts failed - use PUNCHY fallbacks based on available data
         logger.warning(f"All {max_attempts} attempts failed for {company_name}, using smart fallback")
 
         location = lead_data.get("location") if lead_data else None
         person_title = lead_data.get("person_title") if lead_data else None
         keywords = lead_data.get("keywords") if lead_data else None
 
-        # Try to create a better fallback based on available data
         import random
 
-        # Fallback templates that sound more researched
+        # PUNCHY fallback templates - follow the formula: [Fact] — [Ego validation]
         fallback_templates = []
 
         if keywords:
             # Use practice area/services
             practice = keywords.split(",")[0].strip() if "," in keywords else keywords.strip()
-            if practice and len(practice) > 3:
+            if practice and len(practice) > 3 and len(practice) < 35:
                 fallback_templates.extend([
-                    f"{company_name} focusing on {practice[:30]} — that specialization shows.",
-                    f"Handling {practice[:30]} takes real expertise — you've built that.",
-                    f"Your focus on {practice[:30]} sets you apart from generalists.",
+                    f"Pure focus on {practice} when others chase everything — that discipline pays off.",
+                    f"{practice} only, no distractions — clients can tell you're not spread thin.",
+                    f"All-in on {practice} while competitors dabble — expertise like that compounds.",
+                    f"Dedicating a practice to {practice} — that's how you become the go-to.",
                 ])
 
         if location and location.strip():
             city = location.split(",")[0].strip() if "," in location else location.strip()
-            fallback_templates.extend([
-                f"Building a practice in {city} takes persistence — you've done that.",
-                f"Serving {city} clients for years builds real trust.",
-                f"{company_name} in {city} — local expertise matters to clients.",
-            ])
+            if city and len(city) > 2:
+                fallback_templates.extend([
+                    f"Building a reputation in {city} takes years — you've put in the work.",
+                    f"Still standing in {city} while others come and go — that's staying power.",
+                    f"Deep roots in {city} — clients can feel that local commitment.",
+                    f"{city} trusts {company_name} — that wasn't handed to you.",
+                ])
 
-        if person_title and "partner" in person_title.lower():
-            fallback_templates.append(f"Growing a firm to partner level shows real dedication.")
-        elif person_title and "founder" in person_title.lower():
-            fallback_templates.append(f"Building {company_name} from the ground up — that's no small feat.")
+        if person_title:
+            title_lower = person_title.lower()
+            if "partner" in title_lower:
+                fallback_templates.append(f"Making partner means you've proven yourself — that track record matters.")
+            elif "founder" in title_lower or "owner" in title_lower:
+                fallback_templates.append(f"Building {company_name} from scratch — founders know what real work looks like.")
+            elif "director" in title_lower:
+                fallback_templates.append(f"Running operations at {company_name} — the firm depends on leaders like you.")
 
-        # Generic but better fallbacks
+        # Strong generic fallbacks with company name
         fallback_templates.extend([
-            f"{company_name} has built something worth noticing.",
-            f"Running a firm like {company_name} takes serious commitment.",
-            f"Building {company_name}'s reputation didn't happen by accident.",
+            f"{company_name} — a name that didn't build itself overnight.",
+            f"Firms like {company_name} don't survive by accident — you've earned your spot.",
+            f"Running {company_name} in this market takes grit — that shows.",
+            f"The fact that {company_name} is still growing says something about leadership.",
         ])
 
         # Pick a random fallback for variety
@@ -431,52 +448,42 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
 
 {industry_hint}
 
-========== RESEARCH DATA (MINE THIS FOR GOLD) ==========
+========== RESEARCH DATA ==========
 {context}
 ========== END RESEARCH ==========
 
-CRITICAL INSTRUCTION: You MUST find and use a SPECIFIC data point from the research above.
-Scan the data carefully for ANY of these hooks:
+SCAN THE DATA ABOVE. Find the BEST hook and write ONE killer opener.
 
-FOR LAW FIRMS - Look for these EXACT patterns in the data:
-- Dollar amounts: "$500K", "$1M", "$2.3 million", "recovered", "verdict", "settlement"
-- Ratings: "4.5", "4.8", "4.9", "5.0", "stars", "reviews", "Avvo", "10.0"
-- Awards: "Super Lawyers", "Best Lawyers", "Martindale", "AV", "Top 100"
-- Experience: "since 19", "20 years", "25 years", "founded", "established"
-- Team: "attorneys", "lawyers", "partners", "associates", "paralegals"
-- Specialization: "personal injury", "family law", "criminal defense", etc.
+PRIORITY (use first match):
+1. VERDICTS/MONEY: "$2.3M", "million", "recovered", "settlement" → "{company_name} securing $2.3M for clients — results like that travel by word of mouth."
+2. REVIEWS: "4.8", "4.9", "stars", "reviews" → "4.8 stars across 200+ reviews — that reputation wasn't built overnight."
+3. AWARDS: "Super Lawyers", "Avvo", "Best Lawyers", "AV" → "Super Lawyers recognition while running a growing firm — that takes real work."
+4. YEARS: "since 19", "years", "founded", "established" → "28 years in Houston while others come and go — staying power like that is rare."
+5. TEAM: "attorneys", "lawyers", "team of" → "12 attorneys under one roof for PI cases — that's bench strength most can't match."
+6. SPECIALTY: practice area mentioned → "Pure focus on family law when others chase everything — clients notice that commitment."
 
-WRITE A LINE USING THIS FORMULA:
-[Specific achievement/fact] + [brief validation/observation]
+THE FORMULA:
+[Specific fact with number] — [ego-validating observation]
 
-EXAMPLE GOOD LINES (use similar structure):
-- "4.8 stars across 156 Google reviews — clients clearly trust your work."
-- "Practicing since 1992 in Dallas — 32 years of building a reputation."
-- "A team of 8 attorneys handling personal injury — that's real bench strength."
-- "Super Lawyers recognition three years running shows consistency."
-- "Recovering $2.3M for the Martinez family — results like that get talked about."
+GOOD OPENERS (copy this style):
+- "4.9 stars with 340 reviews — trust like that is earned over years, not months."
+- "$1.2M settlement against State Farm — insurance companies remember lawyers who win."
+- "Practicing in Phoenix since 1991 — 33 years of building something real."
+- "7 attorneys focused only on criminal defense — that's rare specialization."
+- "Super Lawyers 2024 while growing the team — you're clearly doing something right."
+- "AV Preeminent from Martindale — top 5% nationally doesn't happen by accident."
 
-VARIETY IS KEY - Use different hooks:
-- Reviews/ratings hook
-- Years in business hook
-- Team size hook
-- Specialization hook
-- Award/recognition hook
-- Case result hook (if available)
+BAD OPENERS (never write these):
+- "Your focus on X sets you apart" — generic garbage
+- "Noticed your team serves Dallas" — lazy location mention
+- "Impressive work at [company]" — empty flattery
+- Anything starting with "I noticed" or "I saw"
 
-NEVER write generic lines like:
-❌ "Noticed your team serves [city]"
-❌ "Came across your firm online"
-❌ "Found your website"
-
-If the research data is sparse, use the company name + general practice area:
-✅ "{company_name} handling [practice area] in [city] — that local focus matters."
-
-OUTPUT FORMAT (REQUIRED):
-LINE: [Your 12-20 word opener - must reference specific data]
+OUTPUT:
+LINE: [12-20 word opener using the formula above]
 TIER: [S/A/B]
-TYPE: [REVIEWS/YEARS/TEAM/SPECIALTY/AWARD/VERDICT/LOCATION_PLUS]
-ARTIFACT: [the exact data point you used]"""
+TYPE: [VERDICT/REVIEWS/AWARD/YEARS/TEAM/SPECIALTY]
+ARTIFACT: [exact data used]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
