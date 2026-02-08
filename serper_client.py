@@ -127,10 +127,19 @@ class SerperClient:
 
     def __init__(self, api_key: str):
         """Initialize the Serper client."""
-        self.api_key = api_key
+        # Strip any whitespace/newlines that might have been added in Railway
+        self.api_key = api_key.strip() if api_key else ""
+
+        # Debug logging for API key issues
+        if not self.api_key:
+            logger.error("SERPER API KEY IS EMPTY - Serper calls will fail!")
+        else:
+            masked = f"{self.api_key[:8]}...{self.api_key[-4:]}" if len(self.api_key) > 12 else "***"
+            logger.info(f"Serper client initialized with key: {masked}")
+
         self.session = requests.Session()
         self.session.headers.update({
-            "X-API-KEY": api_key,
+            "X-API-KEY": self.api_key,
             "Content-Type": "application/json",
         })
 
@@ -154,7 +163,18 @@ class SerperClient:
         }
 
         response = self.session.post(self.BASE_URL, json=payload)
-        response.raise_for_status()
+
+        # Enhanced error handling for debugging
+        if response.status_code == 403:
+            logger.error(
+                f"Serper 403 Forbidden - Check your API key in Railway! "
+                f"Key starts with: {self.api_key[:8] if self.api_key else 'EMPTY'}..."
+            )
+            response.raise_for_status()
+        elif response.status_code != 200:
+            logger.error(f"Serper API error {response.status_code}: {response.text[:200]}")
+            response.raise_for_status()
+
         return response.json()
 
     def _build_disambiguated_query(
