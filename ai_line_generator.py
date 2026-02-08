@@ -205,9 +205,9 @@ TIER: [S/A/B based on the hook quality]
 TYPE: [VERDICT/AVVO/SUPERLAWYERS/REVIEWS/IICRC/INSURANCE/RESPONSE/YEARS/GROWTH/TEAM/SPECIALTY/OTHER]
 ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 reviews", "IICRC WRT certified"]"""
 
-    def __init__(self, api_key: str, model: str = "claude-3-5-haiku-20241022"):
+    def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
-        # Use Claude 3.5 Haiku - fast and reliable
+        # Use Claude 3 Haiku - stable and proven model
         # Sonnet produces better, more thoughtful personalization than Haiku
         self.api_key = api_key
         self.model = model
