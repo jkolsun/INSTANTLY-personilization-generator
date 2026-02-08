@@ -1241,37 +1241,47 @@ def render_lead_manager():
         else:
             # Campaign selector
             campaign_names = {c['name']: c['id'] for c in campaigns}
-            selected_name = st.selectbox("Select Campaign", list(campaign_names.keys()))
+            selected_name = st.selectbox("Select Campaign", list(campaign_names.keys()), key="import_campaign_select")
             selected_id = campaign_names.get(selected_name)
+
+            st.info(f"Importing to: **{selected_name}**")
 
             # File uploader
             uploaded = st.file_uploader(
                 "Upload CSV",
                 type=["csv"],
-                help="Required: email, company_name. Optional: first_name, last_name, site_url, city, state"
+                help="Required: email, company_name. Optional: first_name, last_name, site_url, city, state",
+                key="csv_uploader"
             )
 
             if uploaded:
                 try:
                     df = pd.read_csv(uploaded)
+                    df = normalize_columns(df)  # Normalize column names
                     st.success(f"Found **{len(df)}** leads in CSV")
 
                     # Preview
                     with st.expander("Preview Data", expanded=True):
                         st.dataframe(df.head(10), use_container_width=True)
 
-                    # Import button
-                    if st.button(" Import to Database", type="primary"):
-                        with st.spinner("Importing..."):
-                            result = db.import_leads_from_csv(df.to_dict('records'), selected_id)
-
-                        st.success(f"""
-                        **Import Complete**
-                        - Imported: {result['imported']}
-                        - Skipped: {result['skipped']}
-                        - Errors: {result['errors']}
-                        """)
-                        st.rerun()
+                    # Import button with unique key
+                    if st.button("📥 Import to Database", type="primary", key="import_btn", use_container_width=True):
+                        if not selected_id:
+                            st.error("Please select a campaign first!")
+                        else:
+                            with st.spinner(f"Importing {len(df)} leads to {selected_name}..."):
+                                try:
+                                    result = db.import_leads_from_csv(df.to_dict('records'), selected_id)
+                                    st.success(f"""
+                                    **Import Complete!**
+                                    - ✅ Imported: {result['imported']}
+                                    - ⏭️ Skipped: {result['skipped']}
+                                    - ❌ Errors: {result['errors']}
+                                    """)
+                                    st.balloons()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Import failed: {e}")
 
                 except Exception as e:
                     st.error(f"Error reading CSV: {e}")
