@@ -45,13 +45,23 @@ class AILineGenerator:
     Optimized for LEGAL FIRMS and RESTORATION COMPANIES.
     """
 
-    SYSTEM_PROMPT = """You are an expert cold email copywriter specializing in LEGAL FIRMS and RESTORATION COMPANIES.
+    SYSTEM_PROMPT = """You are the world's best cold email copywriter. Your personalizations get 40%+ open rates.
 
-YOUR MISSION: Write ONE opening line that makes the firm owner/partner think "Wow, they actually researched us" and keeps reading.
+YOUR MISSION: Write ONE killer opening line that makes the recipient think "Holy shit, they actually researched me."
 
-THE EMAIL FLOW:
-Your opener → "The firms responding within 5 minutes convert at 391% higher rate."
-So validate their success, then they'll be curious about the speed-to-lead angle.
+THE SECRET: Find ONE specific, verifiable fact and turn it into ego validation.
+
+WHAT MAKES A GREAT LINE:
+- Specific numbers (4.8 stars, 25 years, 12 attorneys, $2M verdict)
+- Achievements they're proud of (awards, reviews, growth)
+- Shows you did homework (not generic)
+- Makes them feel special among competitors
+
+WHAT KILLS A LINE:
+- Generic location mentions ("serves Dallas")
+- Vague praise ("great firm")
+- Starting with "I noticed" or "I saw"
+- No specific data point
 
 ====================
 PSYCHOLOGICAL TRIGGERS (in order of power)
@@ -348,78 +358,125 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
                 logger.error(f"Unexpected error: {type(e).__name__}: {e}")
                 last_issues = [f"{type(e).__name__}"]
 
-        # All attempts failed - use fallback
-        logger.warning(f"All {max_attempts} attempts failed for {company_name}, using fallback")
-        location = lead_data.get("location") if lead_data else None
-        if location and location.strip():
-            return AIGeneratedLine(
-                line=f"Noticed your team serves {location}.",
-                confidence_tier="B",
-                artifact_type="LOCATION",
-                artifact_used=location,
-                reasoning=f"Fallback after {max_attempts} failed attempts: {', '.join(last_issues)}",
-            )
+        # All attempts failed - use VARIED fallbacks based on available data
+        logger.warning(f"All {max_attempts} attempts failed for {company_name}, using smart fallback")
 
-        # Final fallback - generic line
+        location = lead_data.get("location") if lead_data else None
+        person_title = lead_data.get("person_title") if lead_data else None
+        keywords = lead_data.get("keywords") if lead_data else None
+
+        # Try to create a better fallback based on available data
+        import random
+
+        # Fallback templates that sound more researched
+        fallback_templates = []
+
+        if keywords:
+            # Use practice area/services
+            practice = keywords.split(",")[0].strip() if "," in keywords else keywords.strip()
+            if practice and len(practice) > 3:
+                fallback_templates.extend([
+                    f"{company_name} focusing on {practice[:30]} — that specialization shows.",
+                    f"Handling {practice[:30]} takes real expertise — you've built that.",
+                    f"Your focus on {practice[:30]} sets you apart from generalists.",
+                ])
+
+        if location and location.strip():
+            city = location.split(",")[0].strip() if "," in location else location.strip()
+            fallback_templates.extend([
+                f"Building a practice in {city} takes persistence — you've done that.",
+                f"Serving {city} clients for years builds real trust.",
+                f"{company_name} in {city} — local expertise matters to clients.",
+            ])
+
+        if person_title and "partner" in person_title.lower():
+            fallback_templates.append(f"Growing a firm to partner level shows real dedication.")
+        elif person_title and "founder" in person_title.lower():
+            fallback_templates.append(f"Building {company_name} from the ground up — that's no small feat.")
+
+        # Generic but better fallbacks
+        fallback_templates.extend([
+            f"{company_name} has built something worth noticing.",
+            f"Running a firm like {company_name} takes serious commitment.",
+            f"Building {company_name}'s reputation didn't happen by accident.",
+        ])
+
+        # Pick a random fallback for variety
+        chosen_line = random.choice(fallback_templates)
+
         return AIGeneratedLine(
-            line="Came across your company online.",
+            line=chosen_line,
             confidence_tier="B",
-            artifact_type="FALLBACK",
-            artifact_used="",
-            reasoning=f"All {max_attempts} generation attempts failed",
+            artifact_type="SMART_FALLBACK",
+            artifact_used=location or keywords or company_name,
+            reasoning=f"Smart fallback after {max_attempts} attempts: {', '.join(last_issues)}",
         )
 
     def _build_prompt(self, company_name: str, context: str) -> str:
         """Build the prompt for Claude with industry-specific guidance."""
         # Detect industry from context
         context_lower = context.lower()
-        is_legal = any(kw in context_lower for kw in ["attorney", "lawyer", "law firm", "legal", "verdict", "avvo", "martindale", "settlement", "litigation"])
+        is_legal = any(kw in context_lower for kw in ["attorney", "lawyer", "law firm", "legal", "verdict", "avvo", "martindale", "settlement", "litigation", "practice", "esquire"])
         is_restoration = any(kw in context_lower for kw in ["restoration", "water damage", "fire damage", "iicrc", "mold", "cleanup", "insurance claim"])
 
         industry_hint = ""
         if is_legal:
-            industry_hint = "This appears to be a LEGAL FIRM. Prioritize: verdicts, Avvo ratings, Super Lawyers, reviews."
+            industry_hint = "⚖️ THIS IS A LAW FIRM. Find: verdicts, Avvo ratings, Super Lawyers, reviews, years practicing, team size."
         elif is_restoration:
-            industry_hint = "This appears to be a RESTORATION COMPANY. Prioritize: IICRC certs, insurance partnerships, response time, reviews."
+            industry_hint = "🔧 THIS IS A RESTORATION COMPANY. Find: IICRC certs, insurance partnerships, response time, reviews."
         else:
-            industry_hint = "Scan for both legal (verdicts, Avvo) and restoration (IICRC, insurance) signals."
+            industry_hint = "Scan for any impressive data points: reviews, years in business, team size, awards, certifications."
 
         return f"""COMPANY: {company_name}
 
 {industry_hint}
 
-========== RESEARCH DATA ==========
+========== RESEARCH DATA (MINE THIS FOR GOLD) ==========
 {context}
 ========== END RESEARCH ==========
 
-YOUR TASK: Write ONE cold email opener (12-20 words) that:
-1. Uses the BEST data point from the research above
-2. Makes the owner think "wow, they actually looked us up"
-3. Flows naturally into: "The firms responding within 5 minutes convert at 391% higher rate."
+CRITICAL INSTRUCTION: You MUST find and use a SPECIFIC data point from the research above.
+Scan the data carefully for ANY of these hooks:
 
-PRIORITY ORDER - Use the FIRST match you find:
+FOR LAW FIRMS - Look for these EXACT patterns in the data:
+- Dollar amounts: "$500K", "$1M", "$2.3 million", "recovered", "verdict", "settlement"
+- Ratings: "4.5", "4.8", "4.9", "5.0", "stars", "reviews", "Avvo", "10.0"
+- Awards: "Super Lawyers", "Best Lawyers", "Martindale", "AV", "Top 100"
+- Experience: "since 19", "20 years", "25 years", "founded", "established"
+- Team: "attorneys", "lawyers", "partners", "associates", "paralegals"
+- Specialization: "personal injury", "family law", "criminal defense", etc.
 
-🏆 S-TIER (Use these if available):
-   LEGAL: Verdicts ($2.3M), Avvo (10.0), Super Lawyers, reviews (4.9 stars, 200+)
-   RESTORATION: IICRC certs (WRT, ASD), insurance partnerships, response guarantees, reviews
+WRITE A LINE USING THIS FORMULA:
+[Specific achievement/fact] + [brief validation/observation]
 
-📊 A-TIER (If no S-tier):
-   Years in business (since 1987), team size (12 attorneys), growth signals, founding story
+EXAMPLE GOOD LINES (use similar structure):
+- "4.8 stars across 156 Google reviews — clients clearly trust your work."
+- "Practicing since 1992 in Dallas — 32 years of building a reputation."
+- "A team of 8 attorneys handling personal injury — that's real bench strength."
+- "Super Lawyers recognition three years running shows consistency."
+- "Recovering $2.3M for the Martinez family — results like that get talked about."
 
-📋 B-TIER (Last resort):
-   Practice areas, community involvement, general services
+VARIETY IS KEY - Use different hooks:
+- Reviews/ratings hook
+- Years in business hook
+- Team size hook
+- Specialization hook
+- Award/recognition hook
+- Case result hook (if available)
 
-CRITICAL RULES:
-- Use EXACT numbers: "$2.3M verdict" not "large verdict"
-- Use EXACT ratings: "4.9 stars with 287 reviews" not "great reviews"
-- Complete sentences only — no fragments
-- NO banned words: recently, just, new, exciting, impressive, amazing, innovative
+NEVER write generic lines like:
+❌ "Noticed your team serves [city]"
+❌ "Came across your firm online"
+❌ "Found your website"
 
-OUTPUT FORMAT:
-LINE: [Your 12-20 word opener with proper punctuation]
+If the research data is sparse, use the company name + general practice area:
+✅ "{company_name} handling [practice area] in [city] — that local focus matters."
+
+OUTPUT FORMAT (REQUIRED):
+LINE: [Your 12-20 word opener - must reference specific data]
 TIER: [S/A/B]
-TYPE: [VERDICT/AVVO/SUPERLAWYERS/REVIEWS/IICRC/INSURANCE/RESPONSE/YEARS/GROWTH/TEAM/SPECIALTY]
-ARTIFACT: [exact data used]"""
+TYPE: [REVIEWS/YEARS/TEAM/SPECIALTY/AWARD/VERDICT/LOCATION_PLUS]
+ARTIFACT: [the exact data point you used]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
