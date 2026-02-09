@@ -45,29 +45,25 @@ class AILineGenerator:
     Optimized for LEGAL FIRMS and RESTORATION COMPANIES.
     """
 
-    SYSTEM_PROMPT = """Write a unique cold email opener using ONLY facts from the research provided.
+    SYSTEM_PROMPT = """Write a cold email opener using ONLY facts from the research provided.
 
-RULES:
-1. Use ONLY facts that appear in the research data. Never invent.
-2. Every opener must be UNIQUE. Never use templates or repeated phrases.
-3. Write naturally like a human. No dashes, no formulaic patterns.
-4. 12-20 words. One complete sentence.
+CRITICAL: You must use EXACT data from the research. If no specific data exists, output NO_DATA_FOUND.
 
-FIND IN RESEARCH (priority order):
-- Dollar amounts ($1.2M verdict, $500K settlement)
-- Reviews (4.8 stars, 200 reviews)
-- Awards (Super Lawyers, Avvo 10.0, Martindale AV)
-- Certifications (IICRC, BBB A+)
-- Years (founded 1985, 30 years)
-- Team size (12 attorneys, 8 trucks)
+Look for these in the research:
+- Dollar verdicts/settlements
+- Star ratings and review counts
+- Awards (Super Lawyers, Avvo, Martindale)
+- Certifications (IICRC, BBB)
+- Years in business
+- Team/fleet size
 
-OUTPUT FORMAT:
-LINE: [unique opener using real data]
+OUTPUT:
+LINE: [opener using exact data from research]
 TIER: [S/A/B]
-TYPE: [what data type you used]
-ARTIFACT: [exact data from research]
+TYPE: [data type]
+ARTIFACT: [exact data point copied from research]
 
-If no data found: LINE: NO_DATA_FOUND"""
+NO DATA = LINE: NO_DATA_FOUND"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -178,6 +174,7 @@ If no data found: LINE: NO_DATA_FOUND"""
 
         # If no context at all, return a fallback
         if not context.strip():
+            logger.warning(f"No research data for {company_name}, using fallback")
             return AIGeneratedLine(
                 line="Came across your company online.",
                 confidence_tier="B",
@@ -185,6 +182,23 @@ If no data found: LINE: NO_DATA_FOUND"""
                 artifact_used="",
                 reasoning="No data available for personalization",
             )
+
+        # Check if research has ANY useful data points (numbers, ratings, awards)
+        # If not, skip Claude call and go straight to fallback
+        import re
+        has_useful_data = bool(
+            re.search(r'\$[\d,]+', context) or  # Dollar amounts
+            re.search(r'\d+\.?\d*\s*(?:star|review|rating)', context, re.IGNORECASE) or  # Reviews
+            re.search(r'(?:avvo|super lawyer|martindale|best lawyer)', context, re.IGNORECASE) or  # Legal awards
+            re.search(r'(?:IICRC|WRT|ASD|BBB)', context, re.IGNORECASE) or  # Certifications
+            re.search(r'(?:since|founded|established)\s*\d{4}', context, re.IGNORECASE) or  # Years
+            re.search(r'\d+\s*(?:attorney|lawyer|truck|technician|employee)', context, re.IGNORECASE)  # Team size
+        )
+
+        if not has_useful_data:
+            logger.warning(f"Research for {company_name} has no useful data points, skipping Claude")
+            # Go straight to smart fallback (will be handled at end of function)
+            return self._generate_smart_fallback(company_name, lead_data)
 
         prompt = self._build_prompt(company_name, context)
 
@@ -264,27 +278,27 @@ If no data found: LINE: NO_DATA_FOUND"""
                 logger.error(f"Full traceback: {traceback.format_exc()}")
                 last_issues = [f"{type(e).__name__}"]
 
-        # All attempts failed - use PUNCHY fallbacks based on available data
+        # All attempts failed - use smart fallback
         logger.warning(f"All {max_attempts} attempts failed for {company_name}, using smart fallback")
+        return self._generate_smart_fallback(company_name, lead_data)
+
+    def _generate_smart_fallback(self, company_name: str, lead_data: Optional[dict]) -> AIGeneratedLine:
+        """Generate a smart fallback when no research data is available."""
+        import random
 
         location = lead_data.get("location") if lead_data else None
         person_title = lead_data.get("person_title") if lead_data else None
         keywords = lead_data.get("keywords") if lead_data else None
 
-        import random
-
-        # PUNCHY fallback templates - follow the formula: [Fact] — [Ego validation]
         fallback_templates = []
 
         if keywords:
-            # Use practice area/services
             practice = keywords.split(",")[0].strip() if "," in keywords else keywords.strip()
             if practice and len(practice) > 3 and len(practice) < 35:
                 fallback_templates.extend([
                     f"Your focus on {practice} really sets the firm apart from generalists.",
                     f"Specializing in {practice} takes discipline, and clients notice that commitment.",
                     f"Going deep on {practice} instead of chasing everything shows real expertise.",
-                    f"A dedicated {practice} practice like yours is hard to find.",
                 ])
 
         if location and location.strip():
@@ -294,27 +308,14 @@ If no data found: LINE: NO_DATA_FOUND"""
                     f"Building a strong reputation in {city} takes years of solid work.",
                     f"You've clearly become a trusted name in {city}, that takes time.",
                     f"Being a go-to firm in {city} doesn't happen by accident.",
-                    f"Your presence in {city} speaks to the relationships you've built.",
                 ])
 
-        if person_title:
-            title_lower = person_title.lower()
-            if "partner" in title_lower:
-                fallback_templates.append(f"Making partner is no small feat, that track record matters.")
-            elif "founder" in title_lower or "owner" in title_lower:
-                fallback_templates.append(f"Building {company_name} from the ground up takes real commitment.")
-            elif "director" in title_lower:
-                fallback_templates.append(f"Running operations at a firm like {company_name} requires serious leadership.")
-
-        # Strong generic fallbacks with company name
         fallback_templates.extend([
             f"{company_name} has clearly built something that stands the test of time.",
             f"Firms like {company_name} don't last without doing things the right way.",
             f"Running {company_name} in this market shows real entrepreneurial grit.",
-            f"The growth at {company_name} says a lot about the leadership behind it.",
         ])
 
-        # Pick a random fallback for variety
         chosen_line = random.choice(fallback_templates)
 
         return AIGeneratedLine(
@@ -322,7 +323,7 @@ If no data found: LINE: NO_DATA_FOUND"""
             confidence_tier="B",
             artifact_type="SMART_FALLBACK",
             artifact_used=location or keywords or company_name,
-            reasoning=f"Smart fallback after {max_attempts} attempts: {', '.join(last_issues)}",
+            reasoning="No useful research data found",
         )
 
     def _build_prompt(self, company_name: str, context: str) -> str:
@@ -346,16 +347,18 @@ If no data found: LINE: NO_DATA_FOUND"""
 RESEARCH DATA:
 {context}
 
-TASK: Find the most impressive SPECIFIC fact above and write ONE unique opener (12-20 words).
-- Use the EXACT numbers/data from research. Do not invent.
-- Write naturally. No dashes. No templates.
-- Be creative and unique for THIS specific company.
+INSTRUCTIONS:
+1. Search the research data above for a SPECIFIC fact (dollar amount, star rating, review count, award, year, team size)
+2. If you find a fact, write a natural 12-20 word opener using that EXACT data
+3. If NO specific data exists in the research, you MUST output NO_DATA_FOUND
+
+IMPORTANT: Do NOT invent or guess data. Only use facts that are EXPLICITLY written above.
 
 OUTPUT:
-LINE: [your unique opener]
+LINE: [opener OR "NO_DATA_FOUND" if no data]
 TIER: [S/A/B]
-TYPE: [data type used]
-ARTIFACT: [exact data point]"""
+TYPE: [data type]
+ARTIFACT: [exact fact copied from research, or "none"]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
