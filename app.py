@@ -1309,7 +1309,16 @@ def render_lead_manager():
                 # Settings
                 col1, col2 = st.columns(2)
                 with col1:
-                    batch_size = st.slider("Batch Size", 1, min(500, pending), min(50, pending))
+                    batch_input = st.number_input(
+                        "Number of leads to process (0 = all)",
+                        min_value=0,
+                        max_value=10000,
+                        value=min(50, pending),
+                        step=10,
+                        help=f"Enter 0 to process all {pending} pending leads"
+                    )
+                    # Convert 0 to all pending leads
+                    batch_size = pending if batch_input == 0 else min(batch_input, pending)
                 with col2:
                     st.markdown("**API Status**")
                     if st.session_state.anthropic_connected:
