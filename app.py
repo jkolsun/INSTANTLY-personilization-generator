@@ -49,60 +49,83 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
     /* Main branding colors - Bright Automations Teal Theme */
-    /* Dark mode (default) */
     :root {
         --primary: #2E7D8A;
         --primary-dark: #1e5a63;
         --primary-light: #3a9aa8;
         --secondary: #10b981;
         --accent: #f59e0b;
-        --background: #0f172a;
-        --surface: #1e293b;
-        --surface-light: #334155;
-        --text: #f8fafc;
-        --text-muted: #94a3b8;
-        --text-secondary: #64748b;
-        --glass-bg: rgba(30, 41, 59, 0.7);
-        --glass-border: rgba(255, 255, 255, 0.1);
         --success: #22c55e;
         --warning: #f59e0b;
         --error: #ef4444;
     }
 
-    /* Light mode - detected by Streamlit's theme */
-    [data-testid="stAppViewContainer"][data-theme="light"],
-    .stApp[data-theme="light"] {
-        --background: #f8fafc;
-        --surface: #ffffff;
-        --surface-light: #f1f5f9;
-        --text: #0f172a;
-        --text-muted: #475569;
-        --text-secondary: #64748b;
-        --glass-bg: rgba(255, 255, 255, 0.9);
-        --glass-border: rgba(0, 0, 0, 0.1);
+    /* Universal text colors that work in both modes */
+    .text-primary { color: #1e293b !important; }
+    .text-secondary { color: #475569 !important; }
+    .text-muted { color: #64748b !important; }
+    .text-brand { color: #2E7D8A !important; }
+    .text-success { color: #059669 !important; }
+    .text-warning { color: #d97706 !important; }
+    .text-error { color: #dc2626 !important; }
+
+    /* Card backgrounds that work in both modes */
+    .card-surface {
+        background: rgba(241, 245, 249, 0.8) !important;
+        border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    }
+    .card-success { background: rgba(16, 185, 129, 0.1) !important; border: 1px solid rgba(16, 185, 129, 0.2) !important; }
+    .card-warning { background: rgba(245, 158, 11, 0.1) !important; border: 1px solid rgba(245, 158, 11, 0.2) !important; }
+    .card-error { background: rgba(239, 68, 68, 0.1) !important; border: 1px solid rgba(239, 68, 68, 0.2) !important; }
+    .card-brand { background: rgba(46, 125, 138, 0.1) !important; border: 1px solid rgba(46, 125, 138, 0.2) !important; }
+
+    /* Force all text to be readable */
+    .stMarkdown, .stMarkdown p, .stMarkdown span, .stMarkdown div,
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] span,
+    [data-testid="stMarkdownContainer"] div {
+        color: #1e293b !important;
     }
 
-    /* Force good contrast for text in all modes */
-    .stMarkdown, .stMarkdown p, .stMarkdown span,
-    [data-testid="stMarkdownContainer"] p {
-        color: var(--text) !important;
+    /* Fix metric values */
+    [data-testid="stMetricValue"] {
+        color: #1e293b !important;
     }
 
-    /* Ensure muted text is still readable */
-    .stCaption, [data-testid="stCaptionContainer"] {
-        color: var(--text-muted) !important;
+    [data-testid="stMetricLabel"] {
+        color: #475569 !important;
     }
 
-    /* Fix text color in expanders */
+    /* Fix expander text */
     [data-testid="stExpander"] p,
-    [data-testid="stExpander"] span {
-        color: var(--text) !important;
+    [data-testid="stExpander"] span,
+    [data-testid="stExpander"] div {
+        color: #1e293b !important;
     }
 
-    /* Make inline HTML text respect theme */
-    .element-container div[style*="color: #94a3b8"],
-    .element-container div[style*="color: #64748b"] {
-        color: var(--text-muted) !important;
+    /* Fix sidebar - keep dark theme */
+    [data-testid="stSidebar"] * {
+        color: #f8fafc !important;
+    }
+
+    [data-testid="stSidebar"] [data-testid="stMetricValue"],
+    [data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+        color: #f8fafc !important;
+    }
+
+    /* Fix form inputs */
+    .stTextInput input, .stNumberInput input, .stSelectbox select {
+        color: #1e293b !important;
+        background: #ffffff !important;
+    }
+
+    /* Fix code blocks */
+    .stCodeBlock {
+        background: #1e293b !important;
+    }
+
+    .stCodeBlock code {
+        color: #e2e8f0 !important;
     }
 
     /* Apply Space Grotesk font globally */
@@ -715,7 +738,7 @@ def render_getting_started_checklist():
     <div class="getting-started-banner">
         <div class="getting-started-header">
             <div class="getting-started-title-row">
-                <div class="getting-started-icon">🚀</div>
+                <div class="getting-started-icon">[Start]</div>
                 <div>
                     <h3 class="getting-started-title">Getting Started</h3>
                     <p class="getting-started-subtitle">Complete these steps to start personalizing leads</p>
@@ -856,24 +879,24 @@ def render_sidebar():
         # Main Navigation
         st.markdown("### Navigation")
 
-        pages = {
-            "Dashboard": "📊",
-            "Lead Manager": "👥",
-            "Quick Personalize": "⚡",
-            "Instantly Sync": "🔄",
-            "Settings": "⚙️",
-        }
+        pages = [
+            "Dashboard",
+            "Lead Manager",
+            "Quick Personalize",
+            "Instantly Sync",
+            "Settings",
+        ]
 
         # Show warning if processing is active
         if st.session_state.processing_active:
             st.warning("Processing in progress...")
 
-        for page_name, icon in pages.items():
+        for page_name in pages:
             is_active = st.session_state.current_page == page_name
             # Disable navigation during processing (except to current page)
             is_disabled = st.session_state.processing_active and not is_active
             if st.button(
-                f"{icon} {page_name}",
+                page_name,
                 key=f"nav_{page_name}",
                 use_container_width=True,
                 type="primary" if is_active else "secondary",
@@ -1187,7 +1210,7 @@ def render_dashboard():
                 text-align: center;
                 border: 1px dashed rgba(255, 255, 255, 0.1);
             ">
-                <div style="color: #64748b; font-size: 2rem; margin-bottom: 8px;">📊</div>
+                <div style="color: #64748b; font-size: 2rem; margin-bottom: 8px;">[Chart]</div>
                 <div style="color: #94a3b8; font-size: 0.85rem;">Process leads to see quality breakdown</div>
             </div>
             """, unsafe_allow_html=True)
@@ -1313,7 +1336,7 @@ def render_lead_manager():
                         st.dataframe(df.head(10), use_container_width=True)
 
                     # Import button with unique key
-                    if st.button("📥 Import to Database", type="primary", key="import_btn", use_container_width=True):
+                    if st.button("Download Import to Database", type="primary", key="import_btn", use_container_width=True):
                         if not selected_id:
                             st.error("Please select a campaign first!")
                         else:
@@ -1322,7 +1345,7 @@ def render_lead_manager():
                                     result = db.import_leads_from_csv(df.to_dict('records'), selected_id)
                                     st.success(f"""
                                     **Import Complete!**
-                                    - ✅ Imported: {result['imported']}
+                                    - [OK] Imported: {result['imported']}
                                     - ⏭️ Skipped: {result['skipped']}
                                     - ❌ Errors: {result['errors']}
                                     """)
@@ -1452,9 +1475,9 @@ def run_lead_processing(campaign_id: str, batch_size: int):
 
         # Enhanced status display
         status.markdown(f"""
-        <div style="background: rgba(46, 125, 138, 0.1); padding: 12px 16px; border-radius: 10px; margin: 8px 0;">
-            <div style="color: #2E7D8A; font-weight: 600;">🔍 Deep Research {i+1}/{len(leads)}</div>
-            <div style="color: #f8fafc; font-size: 1.1rem; margin-top: 4px;">{company}</div>
+        <div style="background: rgba(46, 125, 138, 0.1); padding: 12px 16px; border-radius: 10px; margin: 8px 0; border: 1px solid rgba(46, 125, 138, 0.2);">
+            <div style="color: #2E7D8A; font-weight: 600;">Researching {i+1}/{len(leads)}</div>
+            <div style="color: #1e293b; font-size: 1.1rem; margin-top: 4px;">{company}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1477,25 +1500,25 @@ def run_lead_processing(campaign_id: str, batch_size: int):
                 # Show research findings
                 highlights = []
                 if info.case_verdicts:
-                    highlights.append(f"💰 {info.case_verdicts[0]}")
+                    highlights.append(f"Verdict: {info.case_verdicts[0]}")
                 if info.avvo_rating:
-                    highlights.append(f"⭐ {info.avvo_rating}")
+                    highlights.append(f"Avvo: {info.avvo_rating}")
                 if info.super_lawyers:
-                    highlights.append(f"🏆 {info.super_lawyers}")
+                    highlights.append(f"Award: {info.super_lawyers}")
                 if info.google_rating:
-                    highlights.append(f"⭐ {info.google_rating}")
+                    highlights.append(f"Rating: {info.google_rating}")
                 if info.iicrc_certs:
-                    highlights.append(f"🏅 {info.iicrc_certs[0]}")
+                    highlights.append(f"Cert: {info.iicrc_certs[0]}")
                 if info.insurance_partners:
-                    highlights.append(f"🤝 {info.insurance_partners[0]}")
+                    highlights.append(f"Partner: {info.insurance_partners[0]}")
                 if info.years_in_business:
-                    highlights.append(f"📅 {info.years_in_business}")
+                    highlights.append(f"Est: {info.years_in_business}")
 
                 if highlights:
                     research_preview.markdown(f"""
                     <div style="background: rgba(34, 197, 94, 0.1); padding: 10px 14px; border-radius: 8px; margin: 4px 0; border-left: 3px solid #22c55e;">
-                        <div style="color: #94a3b8; font-size: 0.75rem;">FOUND:</div>
-                        <div style="color: #f8fafc; font-size: 0.85rem;">{" | ".join(highlights[:3])}</div>
+                        <div style="color: #475569; font-size: 0.75rem; font-weight: 600;">FOUND:</div>
+                        <div style="color: #1e293b; font-size: 0.85rem;">{" | ".join(highlights[:3])}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -1546,38 +1569,19 @@ def run_lead_processing(campaign_id: str, batch_size: int):
         st.session_state.first_leads_processed = True
 
     # Enhanced success display
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 16px; padding: 24px; margin: 16px 0;">
-        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-            <div style="font-size: 2.5rem;">✅</div>
-            <div>
-                <div style="color: #22c55e; font-size: 1.25rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif;">Processing Complete</div>
-                <div style="color: #94a3b8; font-size: 0.9rem;">{total} leads personalized with deep research</div>
-            </div>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-            <div style="background: rgba(34, 197, 94, 0.2); border-radius: 8px; padding: 12px; text-align: center;">
-                <div style="color: #22c55e; font-size: 1.5rem; font-weight: 700;">{stats['S']}</div>
-                <div style="color: #94a3b8; font-size: 0.75rem;">S-Tier</div>
-            </div>
-            <div style="background: rgba(46, 125, 138, 0.2); border-radius: 8px; padding: 12px; text-align: center;">
-                <div style="color: #2E7D8A; font-size: 1.5rem; font-weight: 700;">{stats['A']}</div>
-                <div style="color: #94a3b8; font-size: 0.75rem;">A-Tier</div>
-            </div>
-            <div style="background: rgba(148, 163, 184, 0.2); border-radius: 8px; padding: 12px; text-align: center;">
-                <div style="color: #94a3b8; font-size: 1.5rem; font-weight: 700;">{stats['B']}</div>
-                <div style="color: #94a3b8; font-size: 0.75rem;">B-Tier</div>
-            </div>
-            <div style="background: rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 12px; text-align: center;">
-                <div style="color: #ef4444; font-size: 1.5rem; font-weight: 700;">{stats['errors']}</div>
-                <div style="color: #94a3b8; font-size: 0.75rem;">Errors</div>
-            </div>
-        </div>
-        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); text-align: center;">
-            <span style="color: #22c55e; font-weight: 600; font-size: 1.1rem;">{s_pct}% S-Tier Quality</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.success(f"Processing Complete - {total} leads personalized")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("S-Tier", stats['S'])
+    with col2:
+        st.metric("A-Tier", stats['A'])
+    with col3:
+        st.metric("B-Tier", stats['B'])
+    with col4:
+        st.metric("Errors", stats['errors'])
+
+    st.info(f"{s_pct}% S-Tier Quality")
 
     # Clear processing flag
     st.session_state.processing_active = False
@@ -1618,27 +1622,7 @@ def render_quick_personalize():
             logger.info(f"Restored {len(processed_leads)} leads from campaign {st.session_state.quick_campaign_id}")
 
     # Industry selection banner
-    st.markdown("""
-    <div style="
-        background: linear-gradient(135deg, rgba(46, 125, 138, 0.15) 0%, rgba(16, 185, 129, 0.08) 100%);
-        border-radius: 16px;
-        padding: 20px 24px;
-        border: 1px solid rgba(46, 125, 138, 0.2);
-        margin-bottom: 24px;
-    ">
-        <div style="display: flex; align-items: center; gap: 16px;">
-            <div style="font-size: 2rem;">🎯</div>
-            <div>
-                <div style="color: #f8fafc; font-weight: 600; font-size: 1.1rem; font-family: 'Space Grotesk', sans-serif;">
-                    Industry-Specific Deep Research
-                </div>
-                <div style="color: #94a3b8; font-size: 0.9rem; margin-top: 4px;">
-                    Our AI performs 6-8 targeted searches per company to find verdicts, ratings, certifications, and awards
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.info("**Industry-Specific Deep Research** - Our AI performs 6-8 targeted searches per company to find verdicts, ratings, certifications, and awards.")
 
     col1, col2 = st.columns([2, 1])
 
@@ -1678,23 +1662,9 @@ def render_quick_personalize():
 
         # Industry-specific info
         if industry == "Legal Firms":
-            st.markdown("""
-            <div style="background: rgba(34, 197, 94, 0.1); padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(34, 197, 94, 0.2); margin: 12px 0;">
-                <div style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">⚖️ Legal Firm Research</div>
-                <div style="color: #94a3b8; font-size: 0.75rem; margin-top: 4px;">
-                    Searches: Avvo ratings, Super Lawyers, Martindale, case verdicts, Google reviews
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.caption("Searches: Avvo ratings, Super Lawyers, Martindale, case verdicts, Google reviews")
         elif industry == "Restoration Companies":
-            st.markdown("""
-            <div style="background: rgba(46, 125, 138, 0.1); padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(46, 125, 138, 0.2); margin: 12px 0;">
-                <div style="color: #2E7D8A; font-weight: 600; font-size: 0.85rem;">🔧 Restoration Research</div>
-                <div style="color: #94a3b8; font-size: 0.75rem; margin-top: 4px;">
-                    Searches: IICRC certs, insurance partnerships, response guarantees, Google reviews
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.caption("Searches: IICRC certs, insurance partnerships, response guarantees, Google reviews")
 
         if st.session_state.df_input is not None:
             total = len(st.session_state.df_input)
@@ -1711,7 +1681,7 @@ def render_quick_personalize():
 
             st.markdown("---")
 
-            if st.button("🚀 Start Deep Research", type="primary", use_container_width=True):
+            if st.button("Start Deep Research", type="primary", use_container_width=True):
                 process_quick_leads(limit, selected_industry)
 
     # Results
@@ -1724,53 +1694,22 @@ def render_quick_personalize():
 
         # Results header with quality score
         s_pct = int((stats.get("S", 0) / total * 100)) if total > 0 else 0
-        quality_color = "#22c55e" if s_pct >= 50 else "#f59e0b" if s_pct >= 25 else "#94a3b8"
 
-        st.markdown(f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div>
-                <h2 style="margin: 0; color: #f8fafc; font-family: 'Space Grotesk', sans-serif;">Results</h2>
-                <p style="color: #94a3b8; margin: 4px 0 0 0;">Deep research complete for {total} companies</p>
-            </div>
-            <div style="
-                background: linear-gradient(135deg, {quality_color}22 0%, {quality_color}11 100%);
-                border: 1px solid {quality_color}44;
-                border-radius: 12px;
-                padding: 12px 20px;
-                text-align: center;
-            ">
-                <div style="color: {quality_color}; font-size: 1.5rem; font-weight: 700;">{s_pct}%</div>
-                <div style="color: #94a3b8; font-size: 0.75rem;">S-Tier Quality</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.subheader("Results")
+        st.caption(f"Deep research complete for {total} companies")
 
-        # Tier breakdown cards
-        st.markdown("""
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;">
-        """ + f"""
-            <div style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 16px; text-align: center;">
-                <div style="color: #22c55e; font-size: 1.75rem; font-weight: 700;">{stats.get("S", 0)}</div>
-                <div style="color: #94a3b8; font-size: 0.8rem;">S-Tier</div>
-                <div style="color: #64748b; font-size: 0.65rem; margin-top: 2px;">Verdicts • Ratings • Awards</div>
-            </div>
-            <div style="background: linear-gradient(135deg, rgba(46, 125, 138, 0.15) 0%, rgba(46, 125, 138, 0.05) 100%); border: 1px solid rgba(46, 125, 138, 0.3); border-radius: 12px; padding: 16px; text-align: center;">
-                <div style="color: #2E7D8A; font-size: 1.75rem; font-weight: 700;">{stats.get("A", 0)}</div>
-                <div style="color: #94a3b8; font-size: 0.8rem;">A-Tier</div>
-                <div style="color: #64748b; font-size: 0.65rem; margin-top: 2px;">Years • Growth • Team</div>
-            </div>
-            <div style="background: linear-gradient(135deg, rgba(148, 163, 184, 0.15) 0%, rgba(148, 163, 184, 0.05) 100%); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12px; padding: 16px; text-align: center;">
-                <div style="color: #94a3b8; font-size: 1.75rem; font-weight: 700;">{stats.get("B", 0)}</div>
-                <div style="color: #94a3b8; font-size: 0.8rem;">B-Tier</div>
-                <div style="color: #64748b; font-size: 0.65rem; margin-top: 2px;">Services • Location</div>
-            </div>
-            <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; text-align: center;">
-                <div style="color: #ef4444; font-size: 1.75rem; font-weight: 700;">{stats.get("errors", 0)}</div>
-                <div style="color: #94a3b8; font-size: 0.8rem;">Errors</div>
-                <div style="color: #64748b; font-size: 0.65rem; margin-top: 2px;">Failed to process</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Quality metrics using native Streamlit
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.metric("S-Tier", stats.get("S", 0), help="Verdicts, Ratings, Awards")
+        with col2:
+            st.metric("A-Tier", stats.get("A", 0), help="Years, Growth, Team")
+        with col3:
+            st.metric("B-Tier", stats.get("B", 0), help="Services, Location")
+        with col4:
+            st.metric("Errors", stats.get("errors", 0))
+        with col5:
+            st.metric("S-Tier %", f"{s_pct}%")
 
         # Sample results preview
         st.markdown("#### Sample Personalization Lines")
@@ -1778,20 +1717,13 @@ def render_quick_personalize():
         sample_df.columns = ["Company", "Personalization Line", "Tier", "Hook Type"]
 
         for _, row in sample_df.iterrows():
-            tier = row["Tier"]
-            tier_color = "#22c55e" if tier == "S" else "#2E7D8A" if tier == "A" else "#94a3b8"
-            st.markdown(f"""
-            <div style="background: rgba(30, 41, 59, 0.5); border-radius: 10px; padding: 14px 18px; margin: 8px 0; border-left: 3px solid {tier_color};">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <div style="color: #f8fafc; font-weight: 600; font-size: 0.9rem;">{row['Company']}</div>
-                    <div style="display: flex; gap: 8px;">
-                        <span style="background: {tier_color}22; color: {tier_color}; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">{tier}-Tier</span>
-                        <span style="background: rgba(148, 163, 184, 0.2); color: #94a3b8; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem;">{row['Hook Type']}</span>
-                    </div>
-                </div>
-                <div style="color: #e2e8f0; font-size: 0.95rem; font-style: italic;">"{row['Personalization Line']}"</div>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.container():
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"**{row['Company']}**")
+                    st.markdown(f"*\"{row['Personalization Line']}\"*")
+                with col2:
+                    st.caption(f"{row['Tier']}-Tier | {row['Hook Type']}")
 
         st.markdown("---")
 
@@ -1804,7 +1736,7 @@ def render_quick_personalize():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             st.download_button(
-                "📥 Download Personalized CSV",
+                "Download Download Personalized CSV",
                 csv,
                 f"personalized_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 "text/csv",
@@ -1851,9 +1783,9 @@ def process_quick_leads(limit: int, industry: str = None):
     for i, row in df.iterrows():
         company = row.get("company_name", "Unknown")
         status.markdown(f"""
-        <div style="background: rgba(46, 125, 138, 0.1); padding: 12px 16px; border-radius: 10px; margin: 8px 0;">
-            <div style="color: #2E7D8A; font-weight: 600;">🔍 Researching {i+1}/{len(df)}</div>
-            <div style="color: #f8fafc; font-size: 1.1rem; margin-top: 4px;">{company}</div>
+        <div style="background: rgba(46, 125, 138, 0.1); padding: 12px 16px; border-radius: 10px; margin: 8px 0; border: 1px solid rgba(46, 125, 138, 0.2);">
+            <div style="color: #2E7D8A; font-weight: 600;">Researching {i+1}/{len(df)}</div>
+            <div style="color: #1e293b; font-size: 1.1rem; margin-top: 4px;">{company}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1881,26 +1813,26 @@ def process_quick_leads(limit: int, industry: str = None):
                 # Build research summary for display
                 highlights = []
                 if info.case_verdicts:
-                    highlights.append(f"💰 Verdicts: {', '.join(info.case_verdicts[:2])}")
+                    highlights.append(f"Verdicts: {', '.join(info.case_verdicts[:2])}")
                 if info.avvo_rating:
-                    highlights.append(f"⭐ {info.avvo_rating}")
+                    highlights.append(f"Avvo: {info.avvo_rating}")
                 if info.super_lawyers:
-                    highlights.append(f"🏆 {info.super_lawyers}")
+                    highlights.append(f"Award: {info.super_lawyers}")
                 if info.google_rating and info.review_count:
-                    highlights.append(f"⭐ {info.google_rating} ({info.review_count})")
+                    highlights.append(f"Rating: {info.google_rating} ({info.review_count})")
                 if info.iicrc_certs:
-                    highlights.append(f"🏅 IICRC: {', '.join(info.iicrc_certs[:2])}")
+                    highlights.append(f"IICRC: {', '.join(info.iicrc_certs[:2])}")
                 if info.insurance_partners:
-                    highlights.append(f"🤝 {info.insurance_partners[0]}")
+                    highlights.append(f"Partner: {info.insurance_partners[0]}")
                 if info.years_in_business:
-                    highlights.append(f"📅 {info.years_in_business}")
+                    highlights.append(f"Est: {info.years_in_business}")
 
                 if highlights:
                     research_summary = " | ".join(highlights[:3])
                     research_preview.markdown(f"""
                     <div style="background: rgba(34, 197, 94, 0.1); padding: 10px 14px; border-radius: 8px; margin: 4px 0; border-left: 3px solid #22c55e;">
-                        <div style="color: #94a3b8; font-size: 0.75rem;">FOUND:</div>
-                        <div style="color: #f8fafc; font-size: 0.85rem;">{research_summary}</div>
+                        <div style="color: #475569; font-size: 0.75rem; font-weight: 600;">FOUND:</div>
+                        <div style="color: #1e293b; font-size: 0.85rem;">{research_summary}</div>
                     </div>
                     """, unsafe_allow_html=True)
             except Exception as e:
@@ -2350,15 +2282,15 @@ SUPABASE_KEY=your-anon-key
             """)
 
         with col2:
-            st.markdown("#### Supabase Setup")
+            st.markdown("#### Connect to Supabase")
 
-            st.markdown("**Step 1:** Create a free project")
-            st.markdown("Go to [supabase.com](https://supabase.com) and create a new project")
+            st.markdown("**Step 1:** Create a free Supabase project at [supabase.com](https://supabase.com)")
 
-            st.markdown("**Step 2:** Run this SQL in the SQL Editor")
+            st.markdown("**Step 2:** Set up the database tables")
 
-            st.code("""
--- Create tables for Bright Automations
+            # Download SQL button instead of showing code
+            sql_schema = """-- Bright Automations Database Schema
+-- Run this in your Supabase SQL Editor
 
 CREATE TABLE campaigns (
     id TEXT PRIMARY KEY,
@@ -2399,9 +2331,19 @@ CREATE TABLE leads (
 
 CREATE INDEX idx_leads_status ON leads(status);
 CREATE INDEX idx_leads_campaign ON leads(campaign_id);
-            """, language="sql")
+"""
+            st.download_button(
+                "Download SQL Schema",
+                sql_schema,
+                file_name="bright_automations_schema.sql",
+                mime="text/plain",
+                use_container_width=True
+            )
+            st.caption("Download and run this SQL in your Supabase SQL Editor")
 
-            st.markdown("**Step 3:** Add your Supabase credentials")
+            st.markdown("---")
+
+            st.markdown("**Step 3:** Enter your Supabase credentials")
 
             # Supabase connection form
             with st.form("supabase_form"):
