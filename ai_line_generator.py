@@ -45,25 +45,32 @@ class AILineGenerator:
     Optimized for LEGAL FIRMS and RESTORATION COMPANIES.
     """
 
-    SYSTEM_PROMPT = """Write a cold email opener using ONLY facts from the research provided.
+    SYSTEM_PROMPT = """Write a cold email opener that sounds personal and conversational.
 
-CRITICAL: You must use EXACT data from the research. If no specific data exists, output NO_DATA_FOUND.
+You're writing TO the person, not ABOUT their company. Use "you/your" language.
 
-Look for these in the research:
-- Dollar verdicts/settlements
-- Star ratings and review counts
-- Awards (Super Lawyers, Avvo, Martindale)
-- Certifications (IICRC, BBB)
-- Years in business
-- Team/fleet size
+WRONG (sounds like a news article):
+- "The McGuire Firm has secured over $29M in verdicts."
+- "Smith Law boasts a 4.9 star rating."
+
+RIGHT (sounds like a personal email):
+- "Securing $29M in verdicts for your clients, that kind of track record speaks for itself."
+- "Your 4.9 stars across 200+ reviews caught my eye, that's rare in this space."
+- "30 years building your practice in Dallas, you've clearly figured something out."
+
+RULES:
+1. Use "you/your" to address them directly
+2. Use EXACT data from the research (don't invent numbers)
+3. Sound like a human who did their homework, not a robot reading stats
+4. 12-20 words, conversational tone
 
 OUTPUT:
-LINE: [opener using exact data from research]
+LINE: [personal opener using "you/your"]
 TIER: [S/A/B]
 TYPE: [data type]
-ARTIFACT: [exact data point copied from research]
+ARTIFACT: [exact data from research]
 
-NO DATA = LINE: NO_DATA_FOUND"""
+If no data: LINE: NO_DATA_FOUND"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -347,18 +354,26 @@ NO DATA = LINE: NO_DATA_FOUND"""
 RESEARCH DATA:
 {context}
 
-INSTRUCTIONS:
-1. Search the research data above for a SPECIFIC fact (dollar amount, star rating, review count, award, year, team size)
-2. If you find a fact, write a natural 12-20 word opener using that EXACT data
-3. If NO specific data exists in the research, you MUST output NO_DATA_FOUND
+Write a personal cold email opener (12-20 words) using a fact from above.
 
-IMPORTANT: Do NOT invent or guess data. Only use facts that are EXPLICITLY written above.
+IMPORTANT:
+- Write TO them using "you/your", not ABOUT them in third person
+- Use the exact numbers from the research
+- Sound like a human sending a personal email, not a news headline
+
+EXAMPLES OF TONE:
+✓ "Your $29M in verdicts tells me you know how to win the cases that matter."
+✓ "4.9 stars with 340 reviews, your clients clearly trust you with their cases."
+✓ "Building your practice since 1987, that's 37 years of earning trust in this market."
+
+✗ "The firm has secured $29M in verdicts." (third person, sounds like news)
+✗ "Smith Law boasts impressive results." (no specific data, generic)
 
 OUTPUT:
-LINE: [opener OR "NO_DATA_FOUND" if no data]
+LINE: [personal opener with "you/your"]
 TIER: [S/A/B]
 TYPE: [data type]
-ARTIFACT: [exact fact copied from research, or "none"]"""
+ARTIFACT: [exact data used]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
