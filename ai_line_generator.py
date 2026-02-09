@@ -45,46 +45,42 @@ class AILineGenerator:
     Optimized for LEGAL FIRMS and RESTORATION COMPANIES.
     """
 
-    SYSTEM_PROMPT = """You write cold email openers. Your job: extract REAL facts from research data and write personalized lines.
+    SYSTEM_PROMPT = """You write personalized cold email openers using ONLY real facts from research data.
 
-⚠️ CRITICAL RULE: You must ONLY use facts that appear in the research data provided.
-NEVER invent, guess, or copy example numbers. If you can't find real data, output NO_DATA_FOUND.
+⚠️ CRITICAL: Only use facts that ACTUALLY appear in the research. Never invent data.
 
-THE FORMULA:
-[Real fact from research] — [ego-validating observation]
+YOUR TASK: Find a specific fact in the research and write a natural, conversational opener.
 
-STRUCTURE (copy this pattern, NOT the numbers):
-- "[X] stars across [Y] reviews — trust like that is earned."
-- "Serving [City] since [Year] — [Z] years of building something real."
-- "[Certification] certified — your crew knows their craft."
-- "[Award name] recognition — that's consistency."
+STYLE: Write like a human, not a template. Be specific. Be conversational. NO dashes or em-dashes.
 
-WHAT TO EXTRACT FROM RESEARCH:
-1. VERDICTS/SETTLEMENTS: Dollar amounts from cases (look for "$", "million", "verdict", "settlement", "recovered")
-2. REVIEWS: Star ratings and review counts (look for "stars", "reviews", "rating")
-3. AWARDS: Super Lawyers, Avvo, Best Lawyers, BBB A+ (look for award names)
-4. CERTIFICATIONS: IICRC, WRT, ASD (look for cert names)
-5. YEARS: Founding date or years in business (look for "since", "founded", "established", years like "1987")
-6. TEAM: Number of attorneys, technicians, trucks (look for numbers + role names)
-7. RESPONSE: 24/7 availability, response guarantees (look for "24/7", "minute response")
+GOOD EXAMPLES (vary your style):
+- "Your 4.8 star rating across 200+ Google reviews caught my attention."
+- "37 years serving Houston, that kind of longevity speaks for itself."
+- "Martindale-Hubbell AV rating puts you in elite company."
+- "IICRC certified with WRT and ASD credentials, your team clearly takes training seriously."
+- "Recovering $1.5M for that client tells me you know how to win."
 
-BANNED BEHAVIORS:
-❌ Using numbers NOT in the research (like inventing "$2.3M" or "287 reviews")
-❌ Generic phrases: "came across", "noticed your company", "found your website"
-❌ Starting with "I noticed" or "I saw"
-❌ These words: recently, just, new, exciting, impressive, amazing, innovative, incredible
+BAD (never write these):
+- Anything with " — " or " - " as a separator
+- "Serving [City] since [Year] — X years of building something real" (too templated)
+- Generic phrases like "came across" or "noticed your company"
+- Making up numbers not in the research
 
-OUTPUT FORMAT:
-LINE: [12-20 word opener using ONLY facts from research]
+PRIORITY ORDER - use the FIRST match you find:
+1. Dollar verdicts/settlements (most impressive)
+2. Star ratings + review counts
+3. Awards (Super Lawyers, Avvo 10.0, Martindale AV)
+4. Certifications (IICRC, BBB A+)
+5. Years in business
+6. Team size
+
+OUTPUT:
+LINE: [12-20 word natural opener, NO dashes]
 TIER: [S/A/B]
-TYPE: [VERDICT/REVIEWS/AWARD/YEARS/TEAM/SPECIALTY/NONE]
-ARTIFACT: [exact fact you extracted from research]
+TYPE: [VERDICT/REVIEWS/AWARD/CERT/YEARS/TEAM/NONE]
+ARTIFACT: [exact data point from research]
 
-If no usable data found:
-LINE: NO_DATA_FOUND
-TIER: B
-TYPE: NONE
-ARTIFACT: none"""
+If nothing useful found: LINE: NO_DATA_FOUND"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -298,37 +294,37 @@ ARTIFACT: none"""
             practice = keywords.split(",")[0].strip() if "," in keywords else keywords.strip()
             if practice and len(practice) > 3 and len(practice) < 35:
                 fallback_templates.extend([
-                    f"Pure focus on {practice} when others chase everything — that discipline pays off.",
-                    f"{practice} only, no distractions — clients can tell you're not spread thin.",
-                    f"All-in on {practice} while competitors dabble — expertise like that compounds.",
-                    f"Dedicating a practice to {practice} — that's how you become the go-to.",
+                    f"Your focus on {practice} really sets the firm apart from generalists.",
+                    f"Specializing in {practice} takes discipline, and clients notice that commitment.",
+                    f"Going deep on {practice} instead of chasing everything shows real expertise.",
+                    f"A dedicated {practice} practice like yours is hard to find.",
                 ])
 
         if location and location.strip():
             city = location.split(",")[0].strip() if "," in location else location.strip()
             if city and len(city) > 2:
                 fallback_templates.extend([
-                    f"Building a reputation in {city} takes years — you've put in the work.",
-                    f"Still standing in {city} while others come and go — that's staying power.",
-                    f"Deep roots in {city} — clients can feel that local commitment.",
-                    f"{city} trusts {company_name} — that wasn't handed to you.",
+                    f"Building a strong reputation in {city} takes years of solid work.",
+                    f"You've clearly become a trusted name in {city}, that takes time.",
+                    f"Being a go-to firm in {city} doesn't happen by accident.",
+                    f"Your presence in {city} speaks to the relationships you've built.",
                 ])
 
         if person_title:
             title_lower = person_title.lower()
             if "partner" in title_lower:
-                fallback_templates.append(f"Making partner means you've proven yourself — that track record matters.")
+                fallback_templates.append(f"Making partner is no small feat, that track record matters.")
             elif "founder" in title_lower or "owner" in title_lower:
-                fallback_templates.append(f"Building {company_name} from scratch — founders know what real work looks like.")
+                fallback_templates.append(f"Building {company_name} from the ground up takes real commitment.")
             elif "director" in title_lower:
-                fallback_templates.append(f"Running operations at {company_name} — the firm depends on leaders like you.")
+                fallback_templates.append(f"Running operations at a firm like {company_name} requires serious leadership.")
 
         # Strong generic fallbacks with company name
         fallback_templates.extend([
-            f"{company_name} — a name that didn't build itself overnight.",
-            f"Firms like {company_name} don't survive by accident — you've earned your spot.",
-            f"Running {company_name} in this market takes grit — that shows.",
-            f"The fact that {company_name} is still growing says something about leadership.",
+            f"{company_name} has clearly built something that stands the test of time.",
+            f"Firms like {company_name} don't last without doing things the right way.",
+            f"Running {company_name} in this market shows real entrepreneurial grit.",
+            f"The growth at {company_name} says a lot about the leadership behind it.",
         ])
 
         # Pick a random fallback for variety
@@ -361,52 +357,31 @@ ARTIFACT: none"""
 
 {industry_hint}
 
-╔══════════════════════════════════════════════════════════════════╗
-║  ⚠️  CRITICAL: ONLY USE DATA FROM THE RESEARCH BELOW  ⚠️         ║
-║  DO NOT INVENT OR MAKE UP ANY FACTS, NUMBERS, OR AWARDS          ║
-║  If you can't find real data below, say "NO_DATA_FOUND"          ║
-╚══════════════════════════════════════════════════════════════════╝
-
-========== RESEARCH DATA FOR {company_name} ==========
+RESEARCH DATA:
 {context}
-========== END RESEARCH DATA ==========
 
-YOUR TASK:
-1. CAREFULLY READ the research data above
-2. FIND a specific fact (number, rating, award, year) that is ACTUALLY IN THE DATA
-3. Write a 12-20 word opener using ONLY facts from the research
+INSTRUCTIONS:
+1. Find ONE impressive fact in the research above (verdict, rating, award, years, team size)
+2. Write a 12-20 word conversational opener using that fact
+3. Do NOT use dashes or em-dashes. Write naturally.
+4. Do NOT copy template phrases. Be original.
 
-FORMULA: [Exact fact from research] — [ego-validating observation]
+GOOD STYLE:
+- "Your 4.9 stars across 340 reviews really stands out in this market."
+- "37 years in Houston, you've clearly built something that lasts."
+- "That Martindale AV rating puts you among the best."
+- "Recovering $1.2M for your client, results like that get noticed."
 
-WHAT TO LOOK FOR (in priority order):
-- Dollar amounts: verdicts, settlements, recovered amounts
-- Star ratings: "4.8 stars", "4.9", review counts
-- Awards: Super Lawyers, Avvo rating, Best Lawyers, BBB A+
-- Certifications: IICRC, WRT, ASD
-- Years: "since 1987", "25 years", founding dates
-- Team size: number of attorneys, technicians, trucks
-- Response time: "24/7", "60-minute response"
+BAD STYLE (never do this):
+- "[Fact] — [observation]" format with dashes
+- "Serving X since Y — Z years of building something real"
+- Inventing facts not in the data
 
-STYLE GUIDE:
-✅ "4.8 stars across 156 reviews — trust like that is earned."
-✅ "Serving Dallas since 1992 — 32 years of building something real."
-✅ "IICRC certified with WRT credentials — your crew knows their craft."
-
-❌ NEVER invent verdicts, dollar amounts, or awards not in the data
-❌ NEVER use generic phrases like "came across your company"
-❌ NEVER start with "I noticed" or "I saw"
-
-OUTPUT FORMAT:
-LINE: [your 12-20 word opener with REAL data from above]
-TIER: [S if verdict/award/rating, A if years/team, B if only location/generic]
-TYPE: [VERDICT/REVIEWS/AWARD/YEARS/TEAM/SPECIALTY/NONE]
-ARTIFACT: [copy the EXACT data point you used from the research]
-
-If NO useful data found, output:
-LINE: NO_DATA_FOUND
-TIER: B
-TYPE: NONE
-ARTIFACT: none"""
+OUTPUT:
+LINE: [natural 12-20 word opener, no dashes]
+TIER: [S/A/B]
+TYPE: [VERDICT/REVIEWS/AWARD/CERT/YEARS/TEAM/NONE]
+ARTIFACT: [exact fact used]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""

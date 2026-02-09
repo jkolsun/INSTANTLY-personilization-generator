@@ -80,8 +80,8 @@ class LineQualityValidator:
         r'(?:State Farm|Allstate|USAA|preferred vendor|insurance)',  # Insurance
         r'(?:24/7|24-hour|emergency response)',  # Response time
         r'(?:claim|restoration|water damage|fire damage)',  # Restoration terms
-        # Em-dash pattern (our formula)
-        r'—',  # Em dash indicates formula was used
+        # Quality conversation starters
+        r'(?:stands out|speaks for itself|caught my attention|get noticed)',
         # General quality signals
         r'since\s+\d{4}',  # "since 1987"
         r'\d+\s*(?:county|counties|cities)',  # Service area
