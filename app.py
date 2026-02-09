@@ -1636,7 +1636,16 @@ def render_quick_personalize():
 
         if st.session_state.df_input is not None:
             total = len(st.session_state.df_input)
-            limit = st.slider("Process limit", 1, total, min(50, total))
+            limit_input = st.number_input(
+                "Number of leads to process (0 = all)",
+                min_value=0,
+                max_value=10000,
+                value=min(50, total),
+                step=10,
+                help=f"Enter 0 to process all {total} leads"
+            )
+            # Convert 0 to total (all leads)
+            limit = total if limit_input == 0 else min(limit_input, total)
 
             st.markdown("---")
 
