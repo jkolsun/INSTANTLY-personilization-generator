@@ -45,42 +45,29 @@ class AILineGenerator:
     Optimized for LEGAL FIRMS and RESTORATION COMPANIES.
     """
 
-    SYSTEM_PROMPT = """You write personalized cold email openers using ONLY real facts from research data.
+    SYSTEM_PROMPT = """Write a unique cold email opener using ONLY facts from the research provided.
 
-⚠️ CRITICAL: Only use facts that ACTUALLY appear in the research. Never invent data.
+RULES:
+1. Use ONLY facts that appear in the research data. Never invent.
+2. Every opener must be UNIQUE. Never use templates or repeated phrases.
+3. Write naturally like a human. No dashes, no formulaic patterns.
+4. 12-20 words. One complete sentence.
 
-YOUR TASK: Find a specific fact in the research and write a natural, conversational opener.
+FIND IN RESEARCH (priority order):
+- Dollar amounts ($1.2M verdict, $500K settlement)
+- Reviews (4.8 stars, 200 reviews)
+- Awards (Super Lawyers, Avvo 10.0, Martindale AV)
+- Certifications (IICRC, BBB A+)
+- Years (founded 1985, 30 years)
+- Team size (12 attorneys, 8 trucks)
 
-STYLE: Write like a human, not a template. Be specific. Be conversational. NO dashes or em-dashes.
-
-GOOD EXAMPLES (vary your style):
-- "Your 4.8 star rating across 200+ Google reviews caught my attention."
-- "37 years serving Houston, that kind of longevity speaks for itself."
-- "Martindale-Hubbell AV rating puts you in elite company."
-- "IICRC certified with WRT and ASD credentials, your team clearly takes training seriously."
-- "Recovering $1.5M for that client tells me you know how to win."
-
-BAD (never write these):
-- Anything with " — " or " - " as a separator
-- "Serving [City] since [Year] — X years of building something real" (too templated)
-- Generic phrases like "came across" or "noticed your company"
-- Making up numbers not in the research
-
-PRIORITY ORDER - use the FIRST match you find:
-1. Dollar verdicts/settlements (most impressive)
-2. Star ratings + review counts
-3. Awards (Super Lawyers, Avvo 10.0, Martindale AV)
-4. Certifications (IICRC, BBB A+)
-5. Years in business
-6. Team size
-
-OUTPUT:
-LINE: [12-20 word natural opener, NO dashes]
+OUTPUT FORMAT:
+LINE: [unique opener using real data]
 TIER: [S/A/B]
-TYPE: [VERDICT/REVIEWS/AWARD/CERT/YEARS/TEAM/NONE]
-ARTIFACT: [exact data point from research]
+TYPE: [what data type you used]
+ARTIFACT: [exact data from research]
 
-If nothing useful found: LINE: NO_DATA_FOUND"""
+If no data found: LINE: NO_DATA_FOUND"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -354,34 +341,21 @@ If nothing useful found: LINE: NO_DATA_FOUND"""
             industry_hint = "Look for: reviews, years in business, team size, awards, certifications."
 
         return f"""COMPANY: {company_name}
-
 {industry_hint}
 
 RESEARCH DATA:
 {context}
 
-INSTRUCTIONS:
-1. Find ONE impressive fact in the research above (verdict, rating, award, years, team size)
-2. Write a 12-20 word conversational opener using that fact
-3. Do NOT use dashes or em-dashes. Write naturally.
-4. Do NOT copy template phrases. Be original.
-
-GOOD STYLE:
-- "Your 4.9 stars across 340 reviews really stands out in this market."
-- "37 years in Houston, you've clearly built something that lasts."
-- "That Martindale AV rating puts you among the best."
-- "Recovering $1.2M for your client, results like that get noticed."
-
-BAD STYLE (never do this):
-- "[Fact] — [observation]" format with dashes
-- "Serving X since Y — Z years of building something real"
-- Inventing facts not in the data
+TASK: Find the most impressive SPECIFIC fact above and write ONE unique opener (12-20 words).
+- Use the EXACT numbers/data from research. Do not invent.
+- Write naturally. No dashes. No templates.
+- Be creative and unique for THIS specific company.
 
 OUTPUT:
-LINE: [natural 12-20 word opener, no dashes]
+LINE: [your unique opener]
 TIER: [S/A/B]
-TYPE: [VERDICT/REVIEWS/AWARD/CERT/YEARS/TEAM/NONE]
-ARTIFACT: [exact fact used]"""
+TYPE: [data type used]
+ARTIFACT: [exact data point]"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
