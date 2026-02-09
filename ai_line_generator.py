@@ -45,165 +45,46 @@ class AILineGenerator:
     Optimized for LEGAL FIRMS and RESTORATION COMPANIES.
     """
 
-    SYSTEM_PROMPT = """You write cold email openers that get 40%+ reply rates. You're a master of ego psychology.
+    SYSTEM_PROMPT = """You write cold email openers. Your job: extract REAL facts from research data and write personalized lines.
 
-YOUR ONE JOB: Write a line that makes them think "Damn, they actually researched us."
+⚠️ CRITICAL RULE: You must ONLY use facts that appear in the research data provided.
+NEVER invent, guess, or copy example numbers. If you can't find real data, output NO_DATA_FOUND.
 
-THE FORMULA THAT WORKS:
-[Specific fact/number] + [em dash] + [validation that strokes ego]
+THE FORMULA:
+[Real fact from research] — [ego-validating observation]
 
-KILLER EXAMPLES:
-- "4.9 stars across 287 reviews — that kind of trust is earned, not bought."
-- "$2.3M verdict against the trucking company — wins like that build empires."
-- "32 years in Dallas while firms come and go — that's staying power."
-- "8 attorneys focused purely on PI — most firms can't resist chasing everything."
-- "Super Lawyers five years running — consistency like that gets noticed."
-- "Family-owned since '89 — clients can feel that difference."
+STRUCTURE (copy this pattern, NOT the numbers):
+- "[X] stars across [Y] reviews — trust like that is earned."
+- "Serving [City] since [Year] — [Z] years of building something real."
+- "[Certification] certified — your crew knows their craft."
+- "[Award name] recognition — that's consistency."
 
-WHY THESE WORK:
-1. Lead with the SPECIFIC FACT (number, award, achievement)
-2. Em dash creates a beat/pause
-3. End with VALIDATION that makes them feel elite/special
-4. Sounds like a peer acknowledging their success
+WHAT TO EXTRACT FROM RESEARCH:
+1. VERDICTS/SETTLEMENTS: Dollar amounts from cases (look for "$", "million", "verdict", "settlement", "recovered")
+2. REVIEWS: Star ratings and review counts (look for "stars", "reviews", "rating")
+3. AWARDS: Super Lawyers, Avvo, Best Lawyers, BBB A+ (look for award names)
+4. CERTIFICATIONS: IICRC, WRT, ASD (look for cert names)
+5. YEARS: Founding date or years in business (look for "since", "founded", "established", years like "1987")
+6. TEAM: Number of attorneys, technicians, trucks (look for numbers + role names)
+7. RESPONSE: 24/7 availability, response guarantees (look for "24/7", "minute response")
 
-WHAT KILLS RESPONSE RATES:
-❌ "Your focus on X sets you apart" — too generic, no specifics
-❌ "Noticed your team serves Dallas" — lazy, anyone can see location
-❌ "Came across your firm" — screams mass email
-❌ Starting with "I" or "Your" — weak, not punchy
-❌ No numbers = no credibility
+BANNED BEHAVIORS:
+❌ Using numbers NOT in the research (like inventing "$2.3M" or "287 reviews")
+❌ Generic phrases: "came across", "noticed your company", "found your website"
+❌ Starting with "I noticed" or "I saw"
+❌ These words: recently, just, new, exciting, impressive, amazing, innovative, incredible
 
-====================
-PSYCHOLOGICAL TRIGGERS (in order of power)
-====================
+OUTPUT FORMAT:
+LINE: [12-20 word opener using ONLY facts from research]
+TIER: [S/A/B]
+TYPE: [VERDICT/REVIEWS/AWARD/YEARS/TEAM/SPECIALTY/NONE]
+ARTIFACT: [exact fact you extracted from research]
 
-1. EGO VALIDATION - Make them feel their firm is special among competitors
-2. SPECIFICITY - Exact numbers ($2.3M, 4.9 stars, 287 reviews, since 1987) prove research
-3. INSIDER KNOWLEDGE - Reference things only someone who looked them up would know
-4. CREDIBILITY RECOGNITION - Acknowledge achievements they're proud of
-
-====================
-S-TIER HOOKS: LEGAL FIRMS (Use these FIRST if available)
-====================
-
-🏆 CASE VERDICTS/SETTLEMENTS (The #1 ego hook for attorneys):
-Examples from data: "$2.3M verdict", "$4.1 million settlement", "recovered $500K"
-→ "That $2.3 million verdict against the trucking company — results like that build a reputation."
-→ "Securing $4.1M for your client in the medical malpractice case shows serious litigation skill."
-→ "A $500K recovery for the Smith family — wins like that get talked about."
-
-⭐ AVVO RATING (Attorneys check this constantly):
-Look for: "10.0", "Superb", "Avvo rating"
-→ "A 10.0 Superb rating on Avvo — that puts you in rare company among [city] attorneys."
-→ "Your Avvo rating speaks for itself — clients clearly trust your work."
-
-🎖️ SUPER LAWYERS / BEST LAWYERS / MARTINDALE (Major prestige):
-→ "Super Lawyers 2024 recognition while running a firm this size isn't easy."
-→ "Best Lawyers in America three years running — that's consistency."
-→ "AV Preeminent from Martindale-Hubbell puts you in the top 5% nationally."
-
-⭐ GOOGLE REVIEWS (Social proof they can't fake):
-Look for: "4.8 stars", "4.9", "150 reviews", "200+ reviews"
-→ "4.9 stars with 287 Google reviews — that's rare for any law firm, let alone one handling [specialty]."
-→ "Your 156 five-star reviews tell the story better than any ad could."
-
-📰 PRESS/NOTABLE CASES:
-→ "The coverage of your win against State Farm got attention in the legal community."
-→ "Your feature in [Publication] — that kind of exposure is earned, not bought."
-
-====================
-S-TIER HOOKS: RESTORATION COMPANIES (Use these FIRST if available)
-====================
-
-🏅 IICRC CERTIFICATIONS (Industry gold standard):
-Look for: "WRT", "ASD", "FSRT", "AMRT", "IICRC", "certified"
-→ "IICRC certified with WRT, ASD, and FSRT under one roof — you take training seriously."
-→ "5 IICRC certifications means your techs aren't just workers, they're specialists."
-→ "That WRT and ASD combo means you handle water damage the right way."
-
-🤝 INSURANCE PREFERRED VENDOR (Major trust signal):
-Look for: "State Farm", "Allstate", "USAA", "preferred vendor", "approved"
-→ "Preferred vendor for State Farm and Allstate — that's trust you've earned, not bought."
-→ "Being on USAA's approved contractor list means you passed serious vetting."
-→ "Insurance-approved for 6 major carriers — that speaks to your process."
-
-⏱️ RESPONSE TIME GUARANTEE:
-Look for: "24/7", "60-minute", "45-minute arrival", "same-day"
-→ "24/7 response with a 45-minute arrival guarantee — that's operational excellence."
-→ "60-minute response time on water emergencies — homeowners remember that speed."
-
-📊 VOLUME/SCALE METRICS:
-Look for: "2,000+ jobs", "claims handled", "15 trucks", "3 locations"
-→ "Handling 2,000+ claims annually means you've built real systems."
-→ "18 trucks across 3 counties — you've scaled this the right way."
-
-⭐ GOOGLE REVIEWS (Same power as legal):
-→ "4.8 stars across 340 reviews for emergency work — that's exceptional."
-→ "Your 5-star BBB rating shows you stand behind your work when it matters."
-
-====================
-A-TIER HOOKS (Use if no S-Tier available)
-====================
-
-📅 YEARS IN BUSINESS (Longevity = trust):
-Look for: "since 1987", "25 years", "established 1992", "founded"
-→ "Practicing law since 1987 — 37 years of trust built in this community."
-→ "Serving [City] for 25 years while others come and go puts you in rare company."
-
-👨‍👩‍👧 FOUNDING/FAMILY STORY:
-Look for: "father and son", "family-owned", "started as solo", "founder"
-→ "Starting the firm with your father in '92 — that legacy carries weight."
-→ "From solo practitioner to 12 attorneys — that's a growth story worth telling."
-
-📈 GROWTH SIGNALS:
-Look for: "new office", "hiring", "expanding", "added", "opened second location"
-→ "Expanding to a second office in Scottsdale while others contract — smart timing."
-→ "Adding 3 associates this year signals the pipeline is strong."
-
-👥 TEAM SIZE:
-Look for: "15 attorneys", "12 technicians", "team of 20"
-→ "A team of 15 with 8 paralegals means you're handling volume without sacrificing quality."
-→ "20 certified technicians across the metro — that's bench strength most can't match."
-
-🎯 SPECIALIZATION (Niche focus = expertise):
-→ "Going all-in on personal injury while others chase every case type — that focus shows."
-→ "Specializing only in water and fire means you're the expert, not a generalist."
-
-====================
-B-TIER HOOKS (Only if nothing else available)
-====================
-
-📋 PRACTICE AREAS/SERVICES:
-→ "Handling both litigation and transactional work gives clients one firm for everything."
-→ "Covering water, fire, and mold restoration means one call handles the whole job."
-
-🏘️ COMMUNITY INVOLVEMENT:
-→ "Sponsoring the Phoenix Little League for 10 years — the community notices that."
-→ "Your scholarship fund for first-gen law students sets you apart."
-
-====================
-ABSOLUTE RULES (NEVER BREAK THESE)
-====================
-
-✅ 12-20 words, COMPLETE SENTENCES that end naturally
-✅ Use EXACT numbers from the research ($2.3M, 4.9 stars, 287 reviews, since 1992)
-✅ Sound like a human who genuinely noticed something about THEIR firm
-✅ Make them think "they actually looked us up"
-
-❌ NEVER invent or hallucinate facts — only use what's IN the research data
-❌ NEVER use these words: recently, just, new, exciting, impressive, amazing, innovative, incredible, cutting-edge, groundbreaking
-❌ NEVER start with "I noticed" or "I saw" — just state the fact directly
-❌ NEVER use generic phrases like "came across your company" or "found your website"
-❌ NEVER write incomplete sentences or truncated thoughts
-
-====================
-OUTPUT FORMAT
-====================
-
-LINE: [Your 12-20 word opener - complete sentence with proper punctuation]
-TIER: [S/A/B based on the hook quality]
-TYPE: [VERDICT/AVVO/SUPERLAWYERS/REVIEWS/IICRC/INSURANCE/RESPONSE/YEARS/GROWTH/TEAM/SPECIALTY/OTHER]
-ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 reviews", "IICRC WRT certified"]"""
+If no usable data found:
+LINE: NO_DATA_FOUND
+TIER: B
+TYPE: NONE
+ARTIFACT: none"""
 
     def __init__(self, api_key: str, model: str = "claude-3-haiku-20240307"):
         """Initialize the AI line generator."""
@@ -355,6 +236,12 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
                 logger.info(f"Claude raw response:\n{raw_response}")
                 result = self._parse_response(raw_response)
 
+                # Check if Claude couldn't find usable data - go straight to fallback
+                if result.artifact_type == "NO_DATA" or "NO_DATA_FOUND" in result.line.upper():
+                    logger.warning(f"Claude found no usable data for {company_name}, using smart fallback")
+                    last_issues = ["No usable research data found"]
+                    break  # Exit retry loop and use smart fallback
+
                 # Validate and clean the output
                 result = self._validate_and_clean(result, company_name)
 
@@ -464,64 +351,62 @@ ARTIFACT: [The exact data point used, e.g., "$2.3M verdict", "4.9 stars 287 revi
 
         industry_hint = ""
         if is_legal:
-            industry_hint = "⚖️ THIS IS A LAW FIRM. Find: verdicts, Avvo ratings, Super Lawyers, reviews, years practicing, team size."
+            industry_hint = "⚖️ THIS IS A LAW FIRM. Look for: verdicts, Avvo ratings, Super Lawyers, Google reviews, years practicing, team size."
         elif is_restoration:
-            industry_hint = "🔧 THIS IS A RESTORATION COMPANY. Find: IICRC certs, insurance partnerships, response time, reviews."
+            industry_hint = "🔧 THIS IS A RESTORATION COMPANY. Look for: IICRC certs, insurance partnerships, response time, reviews."
         else:
-            industry_hint = "Scan for any impressive data points: reviews, years in business, team size, awards, certifications."
+            industry_hint = "Look for: reviews, years in business, team size, awards, certifications."
 
         return f"""COMPANY: {company_name}
 
 {industry_hint}
 
-========== RESEARCH DATA ==========
+╔══════════════════════════════════════════════════════════════════╗
+║  ⚠️  CRITICAL: ONLY USE DATA FROM THE RESEARCH BELOW  ⚠️         ║
+║  DO NOT INVENT OR MAKE UP ANY FACTS, NUMBERS, OR AWARDS          ║
+║  If you can't find real data below, say "NO_DATA_FOUND"          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+========== RESEARCH DATA FOR {company_name} ==========
 {context}
-========== END RESEARCH ==========
+========== END RESEARCH DATA ==========
 
-SCAN THE DATA ABOVE. Find the BEST hook and write ONE killer opener.
+YOUR TASK:
+1. CAREFULLY READ the research data above
+2. FIND a specific fact (number, rating, award, year) that is ACTUALLY IN THE DATA
+3. Write a 12-20 word opener using ONLY facts from the research
 
-PRIORITY (use first match):
-1. VERDICTS/MONEY: "$2.3M", "million", "recovered", "settlement" → "{company_name} securing $2.3M for clients — results like that travel by word of mouth."
-2. REVIEWS: "4.8", "4.9", "stars", "reviews", "BBB A+" → "4.8 stars across 200+ reviews — that reputation wasn't built overnight."
-3. AWARDS: "Super Lawyers", "Avvo", "Best Lawyers", "AV", "IICRC" → "Super Lawyers recognition while running a growing firm — that takes real work."
-4. CERTIFICATIONS: "IICRC", "WRT", "ASD", "certified" → "IICRC certified with WRT and ASD — your techs aren't just workers, they're specialists."
-5. INSURANCE: "State Farm", "Allstate", "preferred vendor" → "Preferred vendor for State Farm — that trust was earned through results."
-6. RESPONSE: "24/7", "60-minute", "response guarantee" → "24/7 response with a 45-minute guarantee — homeowners remember that speed."
-7. YEARS: "since 19", "years", "founded", "established" → "28 years in Houston while others come and go — staying power like that is rare."
-8. TEAM: "attorneys", "lawyers", "team of", "trucks" → "12 attorneys under one roof for PI cases — that's bench strength most can't match."
-9. SPECIALTY: practice area mentioned → "Pure focus on family law when others chase everything — clients notice that commitment."
+FORMULA: [Exact fact from research] — [ego-validating observation]
 
-THE FORMULA:
-[Specific fact with number] — [ego-validating observation]
+WHAT TO LOOK FOR (in priority order):
+- Dollar amounts: verdicts, settlements, recovered amounts
+- Star ratings: "4.8 stars", "4.9", review counts
+- Awards: Super Lawyers, Avvo rating, Best Lawyers, BBB A+
+- Certifications: IICRC, WRT, ASD
+- Years: "since 1987", "25 years", founding dates
+- Team size: number of attorneys, technicians, trucks
+- Response time: "24/7", "60-minute response"
 
-GOOD OPENERS (copy this style):
-LEGAL:
-- "4.9 stars with 340 reviews — trust like that is earned over years, not months."
-- "$1.2M settlement against State Farm — insurance companies remember lawyers who win."
-- "Practicing in Phoenix since 1991 — 33 years of building something real."
-- "7 attorneys focused only on criminal defense — that's rare specialization."
-- "Super Lawyers 2024 while growing the team — you're clearly doing something right."
-- "AV Preeminent from Martindale — top 5% nationally doesn't happen by accident."
+STYLE GUIDE:
+✅ "4.8 stars across 156 reviews — trust like that is earned."
+✅ "Serving Dallas since 1992 — 32 years of building something real."
+✅ "IICRC certified with WRT credentials — your crew knows their craft."
 
-RESTORATION:
-- "IICRC certified with WRT, ASD, and FSRT — your crew knows their craft."
-- "Preferred vendor for State Farm and Allstate — that trust was earned, not bought."
-- "24/7 response with a 45-minute guarantee — homeowners remember that speed when it counts."
-- "18 trucks covering 3 counties — you've scaled this operation the right way."
-- "2,500+ claims handled annually — that's real volume and real systems."
-- "BBB A+ rating for 15 years — you stand behind your work."
+❌ NEVER invent verdicts, dollar amounts, or awards not in the data
+❌ NEVER use generic phrases like "came across your company"
+❌ NEVER start with "I noticed" or "I saw"
 
-BAD OPENERS (never write these):
-- "Your focus on X sets you apart" — generic garbage
-- "Noticed your team serves Dallas" — lazy location mention
-- "Impressive work at [company]" — empty flattery
-- Anything starting with "I noticed" or "I saw"
+OUTPUT FORMAT:
+LINE: [your 12-20 word opener with REAL data from above]
+TIER: [S if verdict/award/rating, A if years/team, B if only location/generic]
+TYPE: [VERDICT/REVIEWS/AWARD/YEARS/TEAM/SPECIALTY/NONE]
+ARTIFACT: [copy the EXACT data point you used from the research]
 
-OUTPUT:
-LINE: [12-20 word opener using the formula above]
-TIER: [S/A/B]
-TYPE: [VERDICT/REVIEWS/AWARD/YEARS/TEAM/SPECIALTY]
-ARTIFACT: [exact data used]"""
+If NO useful data found, output:
+LINE: NO_DATA_FOUND
+TIER: B
+TYPE: NONE
+ARTIFACT: none"""
 
     def _parse_response(self, response_text: str) -> AIGeneratedLine:
         """Parse Claude's response into structured output."""
@@ -589,6 +474,16 @@ ARTIFACT: [exact data used]"""
             line = line[1:]
         elif line.startswith("'") and "'" not in line[1:]:
             line = line[1:]
+
+        # Check if Claude returned NO_DATA_FOUND - signal that we need fallback
+        if "NO_DATA_FOUND" in line.upper() or result["type"] == "NONE":
+            return AIGeneratedLine(
+                line="NO_DATA_FOUND",
+                confidence_tier="B",
+                artifact_type="NO_DATA",
+                artifact_used="",
+                reasoning="Claude found no usable data in research",
+            )
 
         # Final validation - ensure line ends with proper punctuation
         line = line.strip()
