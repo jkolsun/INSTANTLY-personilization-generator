@@ -586,6 +586,7 @@ def init_session_state():
         "df_processed": None,
         "processing_complete": False,
         "processing_stats": {},
+        "quick_campaign_id": None,  # Auto-created campaign for persistence
 
         # Selected campaign for database
         "selected_campaign_id": None,
@@ -1534,6 +1535,26 @@ def render_quick_personalize():
         st.error("Claude AI not connected. Add ANTHROPIC_API_KEY to settings.")
         return
 
+    # Restore results from database on refresh (if we have a saved campaign)
+    if st.session_state.quick_campaign_id and st.session_state.df_processed is None:
+        # Load processed leads from database
+        processed_leads = db.get_leads(
+            campaign_id=st.session_state.quick_campaign_id,
+            status="processed",
+            limit=2000
+        )
+        if processed_leads:
+            st.session_state.df_processed = pd.DataFrame(processed_leads)
+            # Recalculate stats
+            stats = {"S": 0, "A": 0, "B": 0, "errors": 0}
+            for lead in processed_leads:
+                tier = lead.get("confidence_tier", "B")
+                if tier in stats:
+                    stats[tier] += 1
+            st.session_state.processing_stats = stats
+            st.session_state.processing_complete = True
+            logger.info(f"Restored {len(processed_leads)} leads from campaign {st.session_state.quick_campaign_id}")
+
     # Industry selection banner
     st.markdown("""
     <div style="
@@ -1728,6 +1749,20 @@ def process_quick_leads(limit: int, industry: str = None):
     serper = SerperClient(st.session_state.serper_api_key)
     ai_gen = AILineGenerator(st.session_state.anthropic_api_key)
 
+    # Create a campaign for persistence (so results survive refresh)
+    campaign_name = f"Quick Test - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    campaign_id = db.create_campaign(campaign_name, f"Auto-created for {limit} leads")
+    st.session_state.quick_campaign_id = campaign_id
+    logger.info(f"Created campaign {campaign_id} for Quick Personalize persistence")
+
+    # Import leads into the campaign
+    leads_data = df.to_dict('records')
+    db.import_leads_from_csv(leads_data, campaign_id)
+
+    # Get the imported leads with their database IDs
+    db_leads = db.get_leads(campaign_id=campaign_id, status="pending", limit=limit)
+    lead_id_map = {l["company_name"]: l["id"] for l in db_leads}
+
     results = []
     stats = {"S": 0, "A": 0, "B": 0, "errors": 0}
     research_insights = []  # Store research data for display
@@ -1814,6 +1849,18 @@ def process_quick_leads(limit: int, industry: str = None):
                 "artifact_used": result.artifact_used,
             })
 
+            # Save to database for persistence
+            lead_id = lead_id_map.get(company)
+            if lead_id:
+                db.update_lead_status(
+                    lead_id,
+                    "processed",
+                    personalization_line=result.line,
+                    artifact_type=result.artifact_type,
+                    confidence_tier=result.confidence_tier,
+                    artifact_used=result.artifact_used,
+                )
+
             research_insights.append({
                 "company": company,
                 "research": research_summary,
@@ -1833,6 +1880,10 @@ def process_quick_leads(limit: int, industry: str = None):
                 "artifact_type": "ERROR",
                 "artifact_used": "",
             })
+            # Save error to database
+            lead_id = lead_id_map.get(company)
+            if lead_id:
+                db.update_lead_status(lead_id, "error", error_message=str(e)[:200])
             stats["errors"] += 1
 
         progress.progress((i + 1) / len(df))
