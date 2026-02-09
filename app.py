@@ -858,18 +858,12 @@ def render_getting_started_checklist():
 def render_sidebar():
     """Render the sidebar with navigation and status."""
     with st.sidebar:
-        # Logo/Brand with custom styling
+        # Logo/Brand with company logo
         st.markdown("""
-        <div style="text-align: center; padding: 16px 0;">
-            <div style="
-                font-size: 1.75rem;
-                font-weight: 700;
-                font-family: 'Space Grotesk', sans-serif;
-                background: linear-gradient(135deg, #2E7D8A 0%, #10b981 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            ">Bright Automations</div>
+        <div style="text-align: center; padding: 20px 0 16px 0;">
+            <img src="https://www.brightautomations.org/images/Bright_AutoLOGO.png"
+                 alt="Bright Automations"
+                 style="max-width: 180px; height: auto; margin-bottom: 8px;">
             <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 4px;">Lead Personalization Platform</div>
         </div>
         """, unsafe_allow_html=True)
