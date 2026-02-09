@@ -60,8 +60,23 @@ st.markdown("""
         --error: #ef4444;
     }
 
+    /* Force dark theme regardless of user system preferences */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"],
+    .main, [data-testid="stMainBlockContainer"], section[data-testid="stSidebar"],
+    .block-container, [data-testid="stBottomBlockContainer"] {
+        background-color: #0f172a !important;
+    }
+
+    /* Secondary background elements */
+    [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"],
+    [data-testid="stExpander"], [data-testid="stForm"],
+    .stTabs [data-baseweb="tab-panel"], div[data-testid="stMetric"],
+    [data-testid="stFileUploader"], [data-testid="stFileUploaderDropzone"] {
+        background-color: #1e293b !important;
+    }
+
     /* Force ALL text to be WHITE on dark background */
-    * {
+    *, p, span, label, h1, h2, h3, h4, h5, h6, li, td, th, div {
         color: #ffffff !important;
     }
 
@@ -75,6 +90,35 @@ st.markdown("""
     /* Data tables */
     .stDataFrame {
         color: #1e293b !important;
+    }
+
+    /* Force dark background on modals, popovers, and tooltips */
+    [data-baseweb="popover"], [data-baseweb="tooltip"], [data-baseweb="modal"],
+    [role="dialog"], [role="listbox"], [data-baseweb="menu"],
+    [data-baseweb="select"] > div {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+    }
+
+    /* Selectbox dropdown options */
+    [data-baseweb="menu"] li, [role="option"] {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+    }
+
+    [data-baseweb="menu"] li:hover, [role="option"]:hover {
+        background-color: #2E7D8A !important;
+    }
+
+    /* Alert/warning/info boxes */
+    .stAlert, [data-testid="stAlert"] {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+    }
+
+    /* Ensure root html/body has dark background */
+    html, body {
+        background-color: #0f172a !important;
     }
 
     /* Apply Space Grotesk font globally */
