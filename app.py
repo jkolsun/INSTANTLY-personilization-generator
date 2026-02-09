@@ -723,113 +723,35 @@ def get_checklist_status() -> Dict[str, Any]:
 
 
 def render_getting_started_checklist():
-    """Render the premium Getting Started checklist banner at the top of all pages."""
+    """Render getting started checklist using native Streamlit components."""
     if st.session_state.checklist_dismissed:
         return
 
     status = get_checklist_status()
 
-    # Don't show if all complete (show success message briefly then hide)
     if status["all_done"]:
         return
 
-    # Premium banner header
-    st.markdown(f"""
-    <div class="getting-started-banner">
-        <div class="getting-started-header">
-            <div class="getting-started-title-row">
-                <div class="getting-started-icon">[Start]</div>
-                <div>
-                    <h3 class="getting-started-title">Getting Started</h3>
-                    <p class="getting-started-subtitle">Complete these steps to start personalizing leads</p>
-                </div>
-            </div>
-            <div class="progress-badge">{status['completed']}/{status['total']} Complete</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Animated progress bar
+    # Simple header using native components
+    st.subheader(f"Getting Started ({status['completed']}/{status['total']} Complete)")
     st.progress(status["percentage"] / 100)
 
-    # Step cards in a row
+    # Step cards using native columns
     cols = st.columns(5)
     items = list(status["items"].items())
 
     for i, (key, item) in enumerate(items):
         with cols[i]:
-            step_num = i + 1
             is_complete = item["completed"]
+            step_num = i + 1
 
-            # Determine if this is the current/next step
-            is_current = not is_complete and all(
-                status["items"][list(status["items"].keys())[j]]["completed"]
-                for j in range(i)
-            )
-
-            # Card styling based on state
+            # Show status with simple text
             if is_complete:
-                bg_color = "rgba(34, 197, 94, 0.1)"
-                border_color = "rgba(34, 197, 94, 0.3)"
-                icon_bg = "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
-                icon_content = "✓"
-                icon_color = "white"
-                label_color = "#94a3b8"
-                label_style = "text-decoration: line-through;"
-            elif is_current:
-                bg_color = "rgba(46, 125, 138, 0.15)"
-                border_color = "rgba(46, 125, 138, 0.4)"
-                icon_bg = "linear-gradient(135deg, #2E7D8A 0%, #10b981 100%)"
-                icon_content = str(step_num)
-                icon_color = "white"
-                label_color = "#f8fafc"
-                label_style = "font-weight: 600;"
+                st.success(f"Step {step_num} Done")
             else:
-                bg_color = "rgba(30, 41, 59, 0.5)"
-                border_color = "rgba(255, 255, 255, 0.08)"
-                icon_bg = "rgba(100, 116, 139, 0.3)"
-                icon_content = str(step_num)
-                icon_color = "#64748b"
-                label_color = "#94a3b8"
-                label_style = ""
+                st.info(f"Step {step_num}")
 
-            st.markdown(f"""
-            <div style="
-                background: {bg_color};
-                border: 1px solid {border_color};
-                border-radius: 12px;
-                padding: 16px 12px;
-                text-align: center;
-                min-height: 120px;
-                transition: all 0.2s ease;
-            ">
-                <div style="
-                    width: 32px;
-                    height: 32px;
-                    background: {icon_bg};
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    margin: 0 auto 10px;
-                    font-size: 0.85rem;
-                    font-weight: 600;
-                    color: {icon_color};
-                ">{icon_content}</div>
-                <div style="
-                    color: {label_color};
-                    font-size: 0.85rem;
-                    font-family: 'Space Grotesk', sans-serif;
-                    {label_style}
-                ">{item['label']}</div>
-                <div style="
-                    color: #64748b;
-                    font-size: 0.7rem;
-                    margin-top: 4px;
-                    line-height: 1.3;
-                ">{item['description']}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.caption(item['label'])
 
             # Action button only for incomplete items
             if not is_complete:
@@ -837,20 +759,18 @@ def render_getting_started_checklist():
                     f"Go to {item['action']}",
                     key=f"checklist_{key}",
                     use_container_width=True,
-                    type="primary" if is_current else "secondary"
                 ):
                     st.session_state.current_page = item["action"]
                     st.rerun()
 
-    # Dismiss link (subtle)
-    st.markdown("")  # Spacer
+    # Dismiss button
     col1, col2, col3 = st.columns([2, 1, 2])
     with col2:
         if st.button("Hide for now", key="dismiss_checklist", use_container_width=True):
             st.session_state.checklist_dismissed = True
             st.rerun()
 
-    st.markdown("")  # Spacer after checklist
+    st.divider()
 
 
 # ========== Sidebar Navigation ==========
@@ -914,35 +834,13 @@ def render_sidebar():
         # Database indicator
         db_type = db.get_database_type()
         if db_type == "supabase":
-            st.markdown("""
-            <div style="
-                background: rgba(16, 185, 129, 0.1);
-                border: 1px solid rgba(16, 185, 129, 0.3);
-                border-radius: 8px;
-                padding: 8px 12px;
-                color: #10b981;
-                font-size: 0.85rem;
-                text-align: center;
-                margin: 8px 0;
-            ">☁️ Cloud Database</div>
-            """, unsafe_allow_html=True)
+            st.success("Cloud Database")
         else:
-            st.markdown("""
-            <div style="
-                background: rgba(148, 163, 184, 0.1);
-                border: 1px solid rgba(148, 163, 184, 0.3);
-                border-radius: 8px;
-                padding: 8px 12px;
-                color: #94a3b8;
-                font-size: 0.85rem;
-                text-align: center;
-                margin: 8px 0;
-            ">💾 Local Database</div>
-            """, unsafe_allow_html=True)
+            st.info("Local Database")
 
         st.markdown("---")
 
-        # Connection Status with custom badges
+        # Connection Status
         st.markdown("### Connections")
 
         connections = [
@@ -953,60 +851,23 @@ def render_sidebar():
 
         for name, connected, required in connections:
             if connected:
-                st.markdown(f"""
-                <div style="
-                    background: rgba(16, 185, 129, 0.1);
-                    border: 1px solid rgba(16, 185, 129, 0.3);
-                    border-radius: 8px;
-                    padding: 8px 12px;
-                    color: #10b981;
-                    font-size: 0.85rem;
-                    margin: 4px 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                ">✓ {name}</div>
-                """, unsafe_allow_html=True)
+                st.success(f"{name} Connected")
             elif required:
-                st.markdown(f"""
-                <div style="
-                    background: rgba(239, 68, 68, 0.1);
-                    border: 1px solid rgba(239, 68, 68, 0.3);
-                    border-radius: 8px;
-                    padding: 8px 12px;
-                    color: #ef4444;
-                    font-size: 0.85rem;
-                    margin: 4px 0;
-                ">✗ {name}</div>
-                """, unsafe_allow_html=True)
+                st.error(f"{name} Not Connected")
             else:
-                st.markdown(f"""
-                <div style="
-                    background: rgba(148, 163, 184, 0.1);
-                    border: 1px solid rgba(148, 163, 184, 0.2);
-                    border-radius: 8px;
-                    padding: 8px 12px;
-                    color: #94a3b8;
-                    font-size: 0.85rem;
-                    margin: 4px 0;
-                ">○ {name}</div>
-                """, unsafe_allow_html=True)
+                st.info(f"{name} Optional")
 
         # Footer
         st.markdown("---")
-        st.markdown("""
-        <div style="text-align: center; color: #64748b; font-size: 0.75rem;">
-            v2.0 · <a href="https://brightautomations.org" style="color: #2E7D8A;">brightautomations.org</a>
-        </div>
-        """, unsafe_allow_html=True)
+        st.caption("v2.0 - brightautomations.org")
 
 
 # ========== Dashboard Page ==========
 
 def render_dashboard():
     """Render the main dashboard overview."""
-    st.markdown('<h1 class="main-header">Dashboard</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Overview of your lead personalization pipeline</p>', unsafe_allow_html=True)
+    st.title("Dashboard")
+    st.caption("Overview of your lead personalization pipeline")
 
     # Top metrics with premium cards
     stats = db.get_lead_stats()
@@ -1241,8 +1102,8 @@ def render_dashboard():
 
 def render_lead_manager():
     """Render the lead management page."""
-    st.markdown('<h1 class="main-header">Lead Manager</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Manage campaigns and process leads at scale</p>', unsafe_allow_html=True)
+    st.title("Lead Manager")
+    st.caption("Manage campaigns and process leads at scale")
 
     # Tabs for different functions
     tab1, tab2, tab3, tab4 = st.tabs([" Campaigns", " Import", " Process", " Export"])
@@ -1587,8 +1448,8 @@ def run_lead_processing(campaign_id: str, batch_size: int):
 
 def render_quick_personalize():
     """Render the quick CSV personalization page."""
-    st.markdown('<h1 class="main-header">Quick Personalize</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Deep research + AI personalization for legal firms and restoration companies</p>', unsafe_allow_html=True)
+    st.title("Quick Personalize")
+    st.caption("Deep research + AI personalization for legal firms and restoration companies")
 
     # Check API connection
     if not st.session_state.anthropic_connected:
@@ -1908,8 +1769,8 @@ def process_quick_leads(limit: int, industry: str = None):
 
 def render_instantly_sync():
     """Render the Instantly integration page."""
-    st.markdown('<h1 class="main-header">Instantly Sync</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Push personalized leads to your Instantly campaigns</p>', unsafe_allow_html=True)
+    st.title("Instantly Sync")
+    st.caption("Push personalized leads to your Instantly campaigns")
 
     if not st.session_state.instantly_connected:
         st.warning("Instantly not connected. Add your API key in Settings.")
@@ -2033,8 +1894,8 @@ def push_to_instantly(leads: List[Dict], instantly_campaign_id: str, db_campaign
 
 def render_settings():
     """Render the settings page."""
-    st.markdown('<h1 class="main-header">Settings</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Configure your integrations and API connections</p>', unsafe_allow_html=True)
+    st.title("Settings")
+    st.caption("Configure your integrations and API connections")
 
     # Connection Status Overview
     st.markdown("### Connection Status")
