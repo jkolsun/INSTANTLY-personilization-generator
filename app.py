@@ -60,72 +60,21 @@ st.markdown("""
         --error: #ef4444;
     }
 
-    /* Universal text colors that work in both modes */
-    .text-primary { color: #1e293b !important; }
-    .text-secondary { color: #475569 !important; }
-    .text-muted { color: #64748b !important; }
-    .text-brand { color: #2E7D8A !important; }
-    .text-success { color: #059669 !important; }
-    .text-warning { color: #d97706 !important; }
-    .text-error { color: #dc2626 !important; }
-
-    /* Card backgrounds that work in both modes */
-    .card-surface {
-        background: rgba(241, 245, 249, 0.8) !important;
-        border: 1px solid rgba(0, 0, 0, 0.08) !important;
-    }
-    .card-success { background: rgba(16, 185, 129, 0.1) !important; border: 1px solid rgba(16, 185, 129, 0.2) !important; }
-    .card-warning { background: rgba(245, 158, 11, 0.1) !important; border: 1px solid rgba(245, 158, 11, 0.2) !important; }
-    .card-error { background: rgba(239, 68, 68, 0.1) !important; border: 1px solid rgba(239, 68, 68, 0.2) !important; }
-    .card-brand { background: rgba(46, 125, 138, 0.1) !important; border: 1px solid rgba(46, 125, 138, 0.2) !important; }
-
-    /* Force all text to be readable */
-    .stMarkdown, .stMarkdown p, .stMarkdown span, .stMarkdown div,
-    [data-testid="stMarkdownContainer"] p,
-    [data-testid="stMarkdownContainer"] span,
-    [data-testid="stMarkdownContainer"] div {
-        color: #1e293b !important;
+    /* Force ALL text to be WHITE on dark background */
+    * {
+        color: #ffffff !important;
     }
 
-    /* Fix metric values */
-    [data-testid="stMetricValue"] {
-        color: #1e293b !important;
-    }
-
-    [data-testid="stMetricLabel"] {
-        color: #475569 !important;
-    }
-
-    /* Fix expander text */
-    [data-testid="stExpander"] p,
-    [data-testid="stExpander"] span,
-    [data-testid="stExpander"] div {
-        color: #1e293b !important;
-    }
-
-    /* Fix sidebar - keep dark theme */
-    [data-testid="stSidebar"] * {
-        color: #f8fafc !important;
-    }
-
-    [data-testid="stSidebar"] [data-testid="stMetricValue"],
-    [data-testid="stSidebar"] [data-testid="stMetricLabel"] {
-        color: #f8fafc !important;
-    }
-
-    /* Fix form inputs */
-    .stTextInput input, .stNumberInput input, .stSelectbox select {
+    /* Form inputs need dark text on light background */
+    .stTextInput input, .stNumberInput input, .stSelectbox select,
+    .stTextArea textarea {
         color: #1e293b !important;
         background: #ffffff !important;
     }
 
-    /* Fix code blocks */
-    .stCodeBlock {
-        background: #1e293b !important;
-    }
-
-    .stCodeBlock code {
-        color: #e2e8f0 !important;
+    /* Data tables */
+    .stDataFrame {
+        color: #1e293b !important;
     }
 
     /* Apply Space Grotesk font globally */
