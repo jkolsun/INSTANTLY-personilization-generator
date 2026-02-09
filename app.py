@@ -49,6 +49,7 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
     /* Main branding colors - Bright Automations Teal Theme */
+    /* Dark mode (default) */
     :root {
         --primary: #2E7D8A;
         --primary-dark: #1e5a63;
@@ -66,6 +67,42 @@ st.markdown("""
         --success: #22c55e;
         --warning: #f59e0b;
         --error: #ef4444;
+    }
+
+    /* Light mode - detected by Streamlit's theme */
+    [data-testid="stAppViewContainer"][data-theme="light"],
+    .stApp[data-theme="light"] {
+        --background: #f8fafc;
+        --surface: #ffffff;
+        --surface-light: #f1f5f9;
+        --text: #0f172a;
+        --text-muted: #475569;
+        --text-secondary: #64748b;
+        --glass-bg: rgba(255, 255, 255, 0.9);
+        --glass-border: rgba(0, 0, 0, 0.1);
+    }
+
+    /* Force good contrast for text in all modes */
+    .stMarkdown, .stMarkdown p, .stMarkdown span,
+    [data-testid="stMarkdownContainer"] p {
+        color: var(--text) !important;
+    }
+
+    /* Ensure muted text is still readable */
+    .stCaption, [data-testid="stCaptionContainer"] {
+        color: var(--text-muted) !important;
+    }
+
+    /* Fix text color in expanders */
+    [data-testid="stExpander"] p,
+    [data-testid="stExpander"] span {
+        color: var(--text) !important;
+    }
+
+    /* Make inline HTML text respect theme */
+    .element-container div[style*="color: #94a3b8"],
+    .element-container div[style*="color: #64748b"] {
+        color: var(--text-muted) !important;
     }
 
     /* Apply Space Grotesk font globally */
@@ -569,10 +606,13 @@ def init_session_state():
         "instantly_api_key": os.environ.get("INSTANTLY_API_KEY", ""),
         "serper_api_key": os.environ.get("SERPER_API_KEY", ""),
         "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
+        "supabase_url": os.environ.get("SUPABASE_URL", ""),
+        "supabase_key": os.environ.get("SUPABASE_KEY", ""),
 
         # Connection states
         "instantly_connected": bool(os.environ.get("INSTANTLY_API_KEY")),
         "anthropic_connected": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "supabase_connected": bool(os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_KEY")),
 
         # Instantly data
         "instantly_campaigns": [],
@@ -824,13 +864,20 @@ def render_sidebar():
             "Settings": "⚙️",
         }
 
+        # Show warning if processing is active
+        if st.session_state.processing_active:
+            st.warning("Processing in progress...")
+
         for page_name, icon in pages.items():
             is_active = st.session_state.current_page == page_name
+            # Disable navigation during processing (except to current page)
+            is_disabled = st.session_state.processing_active and not is_active
             if st.button(
                 f"{icon} {page_name}",
                 key=f"nav_{page_name}",
                 use_container_width=True,
-                type="primary" if is_active else "secondary"
+                type="primary" if is_active else "secondary",
+                disabled=is_disabled
             ):
                 st.session_state.current_page = page_name
                 st.rerun()
@@ -1387,6 +1434,9 @@ def run_lead_processing(campaign_id: str, batch_size: int):
         st.warning("No leads to process")
         return
 
+    # Set processing active flag to prevent navigation
+    st.session_state.processing_active = True
+
     # Initialize
     serper = SerperClient(st.session_state.serper_api_key)
     ai_gen = AILineGenerator(st.session_state.anthropic_api_key)
@@ -1528,6 +1578,9 @@ def run_lead_processing(campaign_id: str, batch_size: int):
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # Clear processing flag
+    st.session_state.processing_active = False
 
     st.rerun()
 
@@ -1762,6 +1815,9 @@ def render_quick_personalize():
 
 def process_quick_leads(limit: int, industry: str = None):
     """Process leads from uploaded CSV with deep research."""
+    # Set processing active flag to prevent navigation
+    st.session_state.processing_active = True
+
     df = st.session_state.df_input.head(limit).copy()
 
     serper = SerperClient(st.session_state.serper_api_key)
@@ -1915,6 +1971,9 @@ def process_quick_leads(limit: int, industry: str = None):
     # Mark checklist as complete
     if len(results) > 0:
         st.session_state.first_leads_processed = True
+
+    # Clear processing flag
+    st.session_state.processing_active = False
 
     st.rerun()
 
@@ -2342,12 +2401,46 @@ CREATE INDEX idx_leads_status ON leads(status);
 CREATE INDEX idx_leads_campaign ON leads(campaign_id);
             """, language="sql")
 
-            st.markdown("**Step 3:** Add environment variables")
-            st.markdown("""
-            In your hosting platform (Railway, etc.):
-            - `SUPABASE_URL` - Project URL from Settings → API
-            - `SUPABASE_KEY` - `anon` `public` key from Settings → API
-            """)
+            st.markdown("**Step 3:** Add your Supabase credentials")
+
+            # Supabase connection form
+            with st.form("supabase_form"):
+                supabase_url = st.text_input(
+                    "Supabase URL",
+                    value=st.session_state.supabase_url,
+                    placeholder="https://xxxxx.supabase.co",
+                    help="Found in Settings → API → Project URL"
+                )
+                supabase_key = st.text_input(
+                    "Supabase Anon Key",
+                    value=st.session_state.supabase_key,
+                    type="password",
+                    placeholder="eyJhbGciOiJIUzI1NiIs...",
+                    help="Found in Settings → API → anon public key"
+                )
+                submitted = st.form_submit_button("Connect to Supabase", type="primary", use_container_width=True)
+
+                if submitted and supabase_url and supabase_key:
+                    with st.spinner("Testing connection..."):
+                        try:
+                            # Test the connection
+                            os.environ["SUPABASE_URL"] = supabase_url
+                            os.environ["SUPABASE_KEY"] = supabase_key
+                            from supabase_client import SupabaseClient
+                            test_client = SupabaseClient(supabase_url, supabase_key)
+                            if test_client.test_connection():
+                                st.session_state.supabase_url = supabase_url
+                                st.session_state.supabase_key = supabase_key
+                                st.session_state.supabase_connected = True
+                                st.success("Connected to Supabase! Reload the page to use cloud database.")
+                                st.info("Add these to Railway environment variables for persistence:\n- SUPABASE_URL\n- SUPABASE_KEY")
+                            else:
+                                st.error("Connection failed. Check your credentials and make sure tables exist.")
+                        except Exception as e:
+                            st.error(f"Connection failed: {str(e)[:100]}")
+
+            if st.session_state.supabase_connected:
+                st.success("Supabase credentials saved in session")
 
     # ===== Getting Started Tab =====
     with tab3:
